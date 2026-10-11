@@ -1,0 +1,12 @@
+{
+  "name": "@saygo/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@saygo/contracts": "workspace:*",
+    "@saygo/domain": "workspace:*",
+    "@saygo/db": "workspace:*",
+    "@saygo/integrations": "workspace:*"
+  }
+}

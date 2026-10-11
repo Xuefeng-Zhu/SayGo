@@ -1,0 +1,60 @@
+[
+  {
+    "utterance": "Two cheeseburgers, one without onions, and a medium lemonade.",
+    "fixture": "first",
+    "expected": {
+      "product_ids": ["cheeseburger", "cheeseburger", "lemonade"],
+      "quantity": [1, 1, 1],
+      "removals": [[], ["onions"], []],
+      "variants": ["regular", "regular", "medium"],
+      "total_cents": 1755
+    }
+  },
+  {
+    "utterance": "Make the lemonade large, and no cheese on the burger without onions.",
+    "fixture": "correct",
+    "expected": {
+      "product_ids": ["cheeseburger", "cheeseburger", "lemonade"],
+      "quantity": [1, 1, 1],
+      "removals": [[], ["onions", "cheese"], []],
+      "variants": ["regular", "regular", "large"],
+      "total_cents": 1809
+    }
+  },
+  {
+    "utterance": "Make one a meal.",
+    "fixture": "meal",
+    "expected": {
+      "issues": ["ambiguous_line"],
+      "line_count": 3,
+      "total_cents": 1809
+    }
+  },
+  {
+    "utterance": "Do you have chicken?",
+    "fixture": "side",
+    "expected": {
+      "issues": ["ambiguous_line"],
+      "line_count": 3,
+      "total_cents": 1809
+    }
+  },
+  {
+    "utterance": "Remove that.",
+    "fixture": "remove",
+    "expected": {
+      "issues": ["ambiguous_line"],
+      "line_count": 3,
+      "total_cents": 1809
+    }
+  },
+  {
+    "utterance": "Add a pizza.",
+    "fixture": "unsupported",
+    "expected": {
+      "issues": ["unsupported_request"],
+      "line_count": 3,
+      "total_cents": 1809
+    }
+  }
+]

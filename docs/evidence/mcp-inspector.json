@@ -1,0 +1,10 @@
+{
+  "measured_at": "2026-10-11T03:46:09.020Z",
+  "inspector_version": "2.10.1",
+  "protocol_version": "2025-11-25",
+  "tools_discovered": 9,
+  "strict_schema_findings": [],
+  "read_only_call": "get_cart",
+  "result_validated": true,
+  "scope": "Isolated saygo_test database on loopback; no OAuth or live provider calls."
+}

@@ -1,0 +1,1 @@
+{"name":"@saygo/integrations","version":"0.1.0","private":true,"type":"module","exports":"./src/index.ts","dependencies":{"@saygo/contracts":"workspace:*","@saygo/db":"workspace:*"}}

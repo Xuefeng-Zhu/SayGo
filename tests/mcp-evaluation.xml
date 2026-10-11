@@ -1,0 +1,42 @@
+<evaluation>
+  <qa_pair>
+    <question>Using the untouched Harbor Burger v1 fixture, compare every burger-based listed meal with medium fries and a medium drink. What is the cheapest combination before tax? Break drink-price ties by alphabetically smallest product ID. Return meal_id|drink_id|cents.</question>
+    <answer>classic-meal|cola|1100</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>In Harbor Burger v1, calculate a listed Harbor Cheeseburger Meal with its included medium fries and medium lemonade, then compare it with the same meal using medium cola. Ignore tax. Return lemonade_meal_cents|upgrade_cents.</question>
+    <answer>1225|50</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>In Harbor Burger v1, compare a Double Harbor with extra cheese and a Harbor Cheeseburger with an extra patty. Using only allowed extras and before tax, which costs less and by how much? Return cheaper_product_id|cheaper_cents|difference_cents.</question>
+    <answer>cheeseburger|900|50</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Compare Chicken Tenders and Classic Burger in Harbor Burger v1. Which requires an explicit modifier-group choice before review? Return that product ID, required group ID, sorted permitted option IDs and its regular base-price premium over the other item: product|group|option1,option2|cents.</question>
+    <answer>tenders|dip|bbq,ranch|75</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>In Harbor Burger v1, compare large lemonade plus small fries with medium lemonade plus large fries, before tax and without a meal discount. Return first_combination_cents|second_combination_cents|first_combination_savings_cents.</question>
+    <answer>650|750|100</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Compare Garden Burger and Harbor Cheeseburger in Harbor Burger v1. Does each explicitly allow the cheese option in the remove group, and what is the cheeseburger's price for that removal? This asks only about listed modifications, not allergy safety. Return garden:yes_or_no|cheeseburger:yes_or_no|removal_cents.</question>
+    <answer>garden:no|cheeseburger:yes|0</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Inspect all listed meals in Harbor Burger v1. List their distinct base-product IDs alphabetically, their shared side-product ID and their shared discount in cents. Return base1,base2,base3|side|discount. Do not treat a meal's zero placeholder variant price as its full price.</question>
+    <answer>cheeseburger,chicken,classic|fries|100</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Compare all standalone drinks in Harbor Burger v1. Which product IDs share the cheapest large size, what is that price and how much more is large lemonade? Return sorted_ids|large_cents|lemonade_premium_cents.</question>
+    <answer>cola,tea|325|50</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>In Harbor Burger v1, compare the listed Crispy Chicken Meal with medium tea to buying its sandwich, medium fries and medium tea individually. Ignore tax and extras. Return meal_cents|separate_cents|savings_cents.</question>
+    <answer>1275|1375|100</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>In Harbor Burger v1, choose the most expensive regular item in the Burgers category, the cheapest standalone side at any size, and the cheapest large drink. Compare its pre-tax sum with the same side and drink plus the cheapest regular burger. No extras or meal discount. Return expensive_burger_id|side_id|sorted_tied_drink_ids|expensive_sum_cents|difference_cents.</question>
+    <answer>double|slaw|cola,tea|1450|300</answer>
+  </qa_pair>
+</evaluation>

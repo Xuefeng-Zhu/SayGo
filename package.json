@@ -1,0 +1,50 @@
+{
+  "name": "saygo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d --wait",
+    "infra:down": "docker compose stop",
+    "db:migrate": "tsx packages/db/src/migrate.ts",
+    "db:seed": "tsx packages/db/src/seed.ts",
+    "dev": "concurrently -k -n web,runtime,worker 'pnpm --filter @saygo/web dev' 'tsx watch apps/runtime/src/index.ts' 'tsx watch apps/worker/src/index.ts'",
+    "test": "vitest run tests/unit",
+    "test:integration": "tsx tests/setup-db.ts && vitest run tests/integration --maxWorkers=1 --no-file-parallelism",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit && pnpm --filter @saygo/web typecheck",
+    "lint": "eslint .",
+    "build": "pnpm typecheck && pnpm --filter @saygo/web build && tsup apps/runtime/src/index.ts apps/worker/src/index.ts --format esm --out-dir dist --splitting --sourcemap"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1149.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@smithy/node-http-handler": "4.12.1",
+    "dotenv": "16.6.1",
+    "drizzle-orm": "0.45.4",
+    "express": "5.3.0",
+    "pg": "8.23.1",
+    "ws": "8.22.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@playwright/test": "1.64.0",
+    "@types/express": "5.0.5",
+    "@types/node": "24.10.1",
+    "@types/pg": "8.15.6",
+    "@types/ws": "8.18.1",
+    "concurrently": "9.2.1",
+    "eslint": "9.39.1",
+    "prettier": "3.6.2",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.48.1",
+    "vitest": "5.0.3"
+  }
+}
