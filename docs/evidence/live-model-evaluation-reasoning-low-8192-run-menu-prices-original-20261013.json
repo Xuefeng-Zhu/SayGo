@@ -1,0 +1,838 @@
+{
+  "at": "2026-10-13T17:48:00.972Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "AWS DynamoDB",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "completed": true,
+  "trialCount": 10,
+  "passed": 8,
+  "maximumApprovedUsd": 1,
+  "reasoning": "low",
+  "suite": "original",
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "menu-prices-original-20261013",
+  "priorEstimatedUsd": 0.12263174000000002,
+  "cumulativeEstimatedUsd": 0.23208988000000003,
+  "inputTokens": 108708,
+  "outputTokens": 26758,
+  "modelCalls": 28,
+  "estimatedUsd": 0.10945814000000002,
+  "reservedUpperEstimateUsd": 0.10945813999999998,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-10T18:22:42Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "cheapest-burger-meal",
+      "question": "Using the untouched Harbor Burger v1 fixture, compare every burger-based listed meal with medium fries and a medium drink. What is the cheapest combination before tax? Break drink-price ties by alphabetically smallest product ID. Return meal_id|drink_id|cents.",
+      "expected": "classic-meal|cola|1100",
+      "actual": "classic-meal|cola|1100",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 515,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "cheeseburger-meal with cola",
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              },
+              {
+                "label": "cheeseburger-meal with tea",
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              },
+              {
+                "label": "classic-meal with cola",
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              },
+              {
+                "label": "classic-meal with tea",
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "4196e93a7902ef45875633ba1edde300143ce1bb595053883f1934626166c13a",
+          "ms": 253,
+          "isError": true
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "variant": "regular",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ],
+                "label": "cheeseburger-meal with cola"
+              },
+              {
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "variant": "regular",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ],
+                "label": "cheeseburger-meal with tea"
+              },
+              {
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "variant": "regular",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ],
+                "label": "classic-meal with cola"
+              },
+              {
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "variant": "regular",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ],
+                "label": "classic-meal with tea"
+              }
+            ]
+          },
+          "resultHash": "4196e93a7902ef45875633ba1edde300143ce1bb595053883f1934626166c13a",
+          "ms": 243,
+          "isError": true
+        },
+        {
+          "name": "get_item_details",
+          "args": {
+            "product_id": "cheeseburger-meal"
+          },
+          "resultHash": "2539b277d6770fb60789fa37898e04ba43b2bd3dc29b9aa757ba0c21cfcae378",
+          "ms": 513,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "product_id": "cheeseburger-meal"
+                  }
+                ],
+                "label": "cheeseburger-cola"
+              },
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    },
+                    "product_id": "cheeseburger-meal"
+                  }
+                ],
+                "label": "cheeseburger-lemonade"
+              },
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "product_id": "cheeseburger-meal"
+                  }
+                ],
+                "label": "cheeseburger-tea"
+              },
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "product_id": "classic-meal"
+                  }
+                ],
+                "label": "classic-cola"
+              },
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    },
+                    "product_id": "classic-meal"
+                  }
+                ],
+                "label": "classic-lemonade"
+              },
+              {
+                "selections": [
+                  {
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "product_id": "classic-meal"
+                  }
+                ],
+                "label": "classic-tea"
+              }
+            ]
+          },
+          "resultHash": "b98a61c4a75c8a454957f71b643d265c28c121842459b04814ec9cd91c924eae",
+          "ms": 540,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2117,
+          "outputTokens": 1798,
+          "ms": 11780,
+          "stopReason": "tool_use",
+          "requestId": "6259a347-b5f6-4d15-9a5f-105780018f29"
+        },
+        {
+          "inputTokens": 4574,
+          "outputTokens": 1283,
+          "ms": 8263,
+          "stopReason": "tool_use",
+          "requestId": "0487db92-2a69-4932-902a-27aefa00e371"
+        },
+        {
+          "inputTokens": 4832,
+          "outputTokens": 1000,
+          "ms": 6170,
+          "stopReason": "tool_use",
+          "requestId": "f9a862bc-632a-4551-8afd-bbe8439d0f9d"
+        },
+        {
+          "inputTokens": 5114,
+          "outputTokens": 1857,
+          "ms": 10497,
+          "stopReason": "tool_use",
+          "requestId": "f775b735-7073-41ba-88b9-6e8d10118501"
+        },
+        {
+          "inputTokens": 5388,
+          "outputTokens": 1815,
+          "ms": 10054,
+          "stopReason": "tool_use",
+          "requestId": "8b1daf8c-cd30-4eef-a4db-4a1d774a8050"
+        },
+        {
+          "inputTokens": 6390,
+          "outputTokens": 255,
+          "ms": 1504,
+          "stopReason": "end_turn",
+          "requestId": "47d16085-4b20-4364-8e1f-67eb75e854f4"
+        }
+      ],
+      "elapsedMs": 52962
+    },
+    {
+      "id": "lemonade-meal-upgrade",
+      "question": "In Harbor Burger v1, calculate a listed Harbor Cheeseburger Meal with its included medium fries and medium lemonade, then compare it with the same meal using medium cola. Ignore tax. Return lemonade_meal_cents|upgrade_cents.",
+      "expected": "1225|50",
+      "actual": "1225|-50",
+      "pass": false,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 458,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "lemonade_meal",
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "cola_meal",
+                "selections": [
+                  {
+                    "product_id": "cheeseburger-meal",
+                    "variant": "regular",
+                    "quantity": 1,
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "679c65a2ffbc785222f75353f568eddb5fba01dc2f224611f840ee6fb7deacdc",
+          "ms": 420,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2115,
+          "outputTokens": 781,
+          "ms": 4292,
+          "stopReason": "tool_use",
+          "requestId": "6f03b912-56d6-44a5-aaa0-634187db8ca9"
+        },
+        {
+          "inputTokens": 4572,
+          "outputTokens": 1347,
+          "ms": 8630,
+          "stopReason": "tool_use",
+          "requestId": "a65e82a4-2b5f-47e6-bbca-ef4e43b48b27"
+        },
+        {
+          "inputTokens": 4989,
+          "outputTokens": 358,
+          "ms": 1883,
+          "stopReason": "end_turn",
+          "requestId": "e84b023c-5a9a-48b8-90f8-753b353425b8"
+        }
+      ],
+      "elapsedMs": 18881
+    },
+    {
+      "id": "burger-extras-comparison",
+      "question": "In Harbor Burger v1, compare a Double Harbor with extra cheese and a Harbor Cheeseburger with an extra patty. Using only allowed extras and before tax, which costs less and by how much? Return cheaper_product_id|cheaper_cents|difference_cents.",
+      "expected": "cheeseburger|900|50",
+      "actual": "cheeseburger|900|50",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 493,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "double_with_extra_cheese",
+                "selections": [
+                  {
+                    "product_id": "double",
+                    "choices": {
+                      "extra": [
+                        "cheese"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "cheeseburger_with_extra_patty",
+                "selections": [
+                  {
+                    "product_id": "cheeseburger",
+                    "choices": {
+                      "extra": [
+                        "patty"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "1934c114db8d124e4d8525d38f9a90f1464f8344d99109d95443f708a3eb2aca",
+          "ms": 495,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2122,
+          "outputTokens": 1778,
+          "ms": 8942,
+          "stopReason": "tool_use",
+          "requestId": "575638ae-012e-4706-bfe7-34a08f7f147f"
+        },
+        {
+          "inputTokens": 4579,
+          "outputTokens": 619,
+          "ms": 3072,
+          "stopReason": "tool_use",
+          "requestId": "5091f72e-9dee-42dd-9c17-bd5add4b6cad"
+        },
+        {
+          "inputTokens": 4960,
+          "outputTokens": 515,
+          "ms": 2976,
+          "stopReason": "end_turn",
+          "requestId": "9f820733-655a-433b-8b41-91813b7d90ef"
+        }
+      ],
+      "elapsedMs": 18518
+    },
+    {
+      "id": "required-dip",
+      "question": "Compare Chicken Tenders and Classic Burger in Harbor Burger v1. Which requires an explicit modifier-group choice before review? Return that product ID, required group ID, sorted permitted option IDs and its regular base-price premium over the other item: product|group|option1,option2|cents.",
+      "expected": "tenders|dip|bbq,ranch|75",
+      "actual": "tenders|dip|bbq,ranch|75",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 449,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2126,
+          "outputTokens": 761,
+          "ms": 3769,
+          "stopReason": "tool_use",
+          "requestId": "7743cd03-8cb7-4a09-9bc3-e3e7906993bc"
+        },
+        {
+          "inputTokens": 4583,
+          "outputTokens": 490,
+          "ms": 2347,
+          "stopReason": "end_turn",
+          "requestId": "99a40e28-f452-47eb-922d-85fd6dd448f6"
+        }
+      ],
+      "elapsedMs": 9799
+    },
+    {
+      "id": "size-tradeoff",
+      "question": "In Harbor Burger v1, compare large lemonade plus small fries with medium lemonade plus large fries, before tax and without a meal discount. Return first_combination_cents|second_combination_cents|first_combination_savings_cents.",
+      "expected": "650|750|100",
+      "actual": "650|750|100",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 509,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "baseline",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "large"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "small"
+                  }
+                ]
+              },
+              {
+                "label": "changed",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "medium"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "large"
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "74c77b6bfc3ca5409fa9c231edcd41c7b382eb2768b0d1af19f4d7d104b6f143",
+          "ms": 478,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2115,
+          "outputTokens": 481,
+          "ms": 2641,
+          "stopReason": "tool_use",
+          "requestId": "19eb99a2-e47c-4089-aff2-749df3f3ca56"
+        },
+        {
+          "inputTokens": 4572,
+          "outputTokens": 1776,
+          "ms": 8208,
+          "stopReason": "tool_use",
+          "requestId": "5425ce13-dc17-4a92-b248-b82875cfe1e0"
+        },
+        {
+          "inputTokens": 4994,
+          "outputTokens": 306,
+          "ms": 1714,
+          "stopReason": "end_turn",
+          "requestId": "11031b79-40d1-454e-9507-e06ee9bfde61"
+        }
+      ],
+      "elapsedMs": 16128
+    },
+    {
+      "id": "allowed-removal",
+      "question": "Compare Garden Burger and Harbor Cheeseburger in Harbor Burger v1. Does each explicitly allow the cheese option in the remove group, and what is the cheeseburger's price for that removal? This asks only about listed modifications, not allergy safety. Return garden:yes_or_no|cheeseburger:yes_or_no|removal_cents.",
+      "expected": "garden:no|cheeseburger:yes|0",
+      "actual": "garden:no|cheeseburger:yes|removal_cents:0",
+      "pass": false,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 486,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2137,
+          "outputTokens": 554,
+          "ms": 2829,
+          "stopReason": "tool_use",
+          "requestId": "9a4f5360-1754-405b-ad7d-f05f083e2283"
+        },
+        {
+          "inputTokens": 4594,
+          "outputTokens": 385,
+          "ms": 1910,
+          "stopReason": "end_turn",
+          "requestId": "4371d779-37b9-4d05-9897-353b21f2ac33"
+        }
+      ],
+      "elapsedMs": 7703
+    },
+    {
+      "id": "meal-components",
+      "question": "Inspect all listed meals in Harbor Burger v1. List their distinct base-product IDs alphabetically, their shared side-product ID and their shared discount in cents. Return base1,base2,base3|side|discount. Do not treat a meal's zero placeholder variant price as its full price.",
+      "expected": "cheeseburger,chicken,classic|fries|100",
+      "actual": "cheeseburger,chicken,classic|fries|100",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 475,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2126,
+          "outputTokens": 769,
+          "ms": 5128,
+          "stopReason": "tool_use",
+          "requestId": "437eec7b-f354-4823-9e7b-215a314d6677"
+        },
+        {
+          "inputTokens": 4583,
+          "outputTokens": 845,
+          "ms": 4165,
+          "stopReason": "end_turn",
+          "requestId": "f5d058c3-67e3-44ed-b38a-335e04512f4d"
+        }
+      ],
+      "elapsedMs": 12281
+    },
+    {
+      "id": "drink-size-pricing",
+      "question": "Compare all standalone drinks in Harbor Burger v1. Which product IDs share the cheapest large size, what is that price and how much more is large lemonade? Return sorted_ids|large_cents|lemonade_premium_cents.",
+      "expected": "cola,tea|325|50",
+      "actual": "cola,tea|325|50",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 426,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2113,
+          "outputTokens": 1664,
+          "ms": 9483,
+          "stopReason": "tool_use",
+          "requestId": "7266b066-2b96-4de9-8824-941c52195d17"
+        },
+        {
+          "inputTokens": 4570,
+          "outputTokens": 416,
+          "ms": 2078,
+          "stopReason": "end_turn",
+          "requestId": "349f587b-8aca-489e-8f6e-c573a2d25a00"
+        }
+      ],
+      "elapsedMs": 14631
+    },
+    {
+      "id": "chicken-meal-savings",
+      "question": "In Harbor Burger v1, compare the listed Crispy Chicken Meal with medium tea to buying its sandwich, medium fries and medium tea individually. Ignore tax and extras. Return meal_cents|separate_cents|savings_cents.",
+      "expected": "1275|1375|100",
+      "actual": "1275|1375|100",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 458,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "separate",
+                "selections": [
+                  {
+                    "product_id": "chicken",
+                    "variant": "regular"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "medium"
+                  },
+                  {
+                    "product_id": "tea",
+                    "variant": "medium"
+                  }
+                ]
+              },
+              {
+                "label": "meal",
+                "selections": [
+                  {
+                    "product_id": "chicken-meal",
+                    "variant": "regular",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "ecab1331144f4224fcdefa112a943a1ed1a04854cd63c59f71012fc177784a55",
+          "ms": 469,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2113,
+          "outputTokens": 662,
+          "ms": 4287,
+          "stopReason": "tool_use",
+          "requestId": "f185462a-90f2-40ce-8066-91dad4db3fc7"
+        },
+        {
+          "inputTokens": 4570,
+          "outputTokens": 1435,
+          "ms": 7791,
+          "stopReason": "tool_use",
+          "requestId": "fee30f44-6cf8-4dda-8c75-e4195eeebd2a"
+        },
+        {
+          "inputTokens": 5011,
+          "outputTokens": 165,
+          "ms": 1246,
+          "stopReason": "end_turn",
+          "requestId": "5d732ae1-dee3-451b-acdb-a8e4434d6799"
+        }
+      ],
+      "elapsedMs": 16992
+    },
+    {
+      "id": "full-menu-budget-comparison",
+      "question": "In Harbor Burger v1, choose the most expensive regular item in the Burgers category, the cheapest standalone side at any size, and the cheapest large drink. Compare its pre-tax sum with the same side and drink plus the cheapest regular burger. No extras or meal discount. Return expensive_burger_id|side_id|sorted_tied_drink_ids|expensive_sum_cents|difference_cents.",
+      "expected": "double|slaw|cola,tea|1450|300",
+      "actual": "double|slaw|cola,tea|1450|300",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 489,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2146,
+          "outputTokens": 1994,
+          "ms": 9726,
+          "stopReason": "tool_use",
+          "requestId": "188aad3c-14f5-4b45-8e76-b083b854470c"
+        },
+        {
+          "inputTokens": 4603,
+          "outputTokens": 649,
+          "ms": 3215,
+          "stopReason": "end_turn",
+          "requestId": "80d815fd-d864-4087-a825-f520a8ae41c7"
+        }
+      ],
+      "elapsedMs": 16005
+    }
+  ]
+}

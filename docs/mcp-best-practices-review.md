@@ -1,5 +1,7 @@
 # MCP guide review
 
+Current follow-up, October 13: contract 0.3 adds read-only `compare_menu_prices` to make the catalog ten tools; [current contracts](mcp-contracts.md) describe its strict schemas and authority boundaries. The refreshed [Inspector report](evidence/mcp-inspector.json) discovers ten tools with zero strict schema findings. The observations below are the historical October 10 review; current DynamoDB, publication and live-model results are in [evaluation evidence](evaluation.md).
+
 Reviewed October 10, 2026 Pacific. **The checked local implementation passes the scoped review and regression suite; this is not a production certification or a claim of compatibility with every MCP client/version.**
 
 The MCP-builder skill drove the schema, transport, Inspector and evaluation checks. Its three supplemental reference files were absent locally; the official protocol pages and installed SDK source supplied the missing references. The web-testing skill informed regression checks of the existing customer/staff workflows. Existing uncommitted work was preserved; this repository has no remote to synchronize.

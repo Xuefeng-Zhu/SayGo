@@ -150,6 +150,54 @@ export type CartResult = z.infer<typeof cartResultSchema>;
 export const toolDataSchemas = {
   get_menu: z.object({ menu, summary }).strict(),
   get_item_details: z.object({ product: productSchema, summary }).strict(),
+  compare_menu_prices: z
+    .object({
+      menu_version: version,
+      price_version: version,
+      currency: z.literal("USD"),
+      baseline_label: stableId,
+      options: z.array(
+        z
+          .object({
+            label: stableId,
+            totals,
+            lines: z.array(
+              z
+                .object({
+                  product_id: stableId,
+                  unit_price: cents,
+                  line_total: cents,
+                  modifiers: z.array(z.string()),
+                })
+                .strict(),
+            ),
+          })
+          .strict(),
+      ),
+      comparisons: z.array(
+        z
+          .object({
+            label: stableId,
+            subtotal_delta_cents: z
+              .number()
+              .int()
+              .describe(
+                "This option subtotal minus FIRST option subtotal. Positive costs more; negative saves money. Before tax.",
+              ),
+            absolute_subtotal_difference_cents: cents.describe(
+              "Nonnegative pre-tax gap between this option and the baseline, independent of which was submitted first. Use for an unsigned premium or savings magnitude.",
+            ),
+            more_expensive_label: stableId
+              .nullable()
+              .describe(
+                "Label of the more expensive of these two options, or null when tied. Identifies which option carries the nonnegative premium.",
+              ),
+          })
+          .strict(),
+      ),
+      summary,
+    })
+    .strict(),
   get_cart: cartResultSchema,
   apply_cart_changes: cartResultSchema,
   prepare_order_review: z.object({ quote, summary }).strict(),
@@ -225,6 +273,7 @@ function outputSchema<T extends z.ZodType>(data: T) {
 export const toolOutputSchemas = {
   get_menu: outputSchema(toolDataSchemas.get_menu),
   get_item_details: outputSchema(toolDataSchemas.get_item_details),
+  compare_menu_prices: outputSchema(toolDataSchemas.compare_menu_prices),
   get_cart: outputSchema(toolDataSchemas.get_cart),
   apply_cart_changes: outputSchema(toolDataSchemas.apply_cart_changes),
   prepare_order_review: outputSchema(toolDataSchemas.prepare_order_review),
@@ -235,6 +284,7 @@ export const toolOutputSchemas = {
 };
 
 const recoveryActions: Record<string, Recovery["next_action"]> = {
+  INCOMPLETE_SELECTION: "correct_arguments",
   VERSION_CONFLICT: "refresh_cart",
   STALE_QUOTE: "review_order",
   STALE_REVIEW_REQUEST: "review_order",

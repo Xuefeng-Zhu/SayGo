@@ -1,7 +1,15 @@
 export const INPUT_USD_PER_MILLION = 0.33;
 export const OUTPUT_USD_PER_MILLION = 2.75;
 export const MAX_OUTPUT_TOKENS = 2048;
-export const READ_ONLY_TOOLS = new Set(["get_menu", "get_item_details"]);
+export const isLiveEvaluationReportName = (name: string) =>
+  /^live-model-evaluation(?:-reasoning-(?:low|medium)(?:-\d+)?)?(?:-run-[A-Za-z0-9_-]+)?\.json$/.test(
+    name,
+  );
+export const READ_ONLY_TOOLS = new Set([
+  "get_menu",
+  "get_item_details",
+  "compare_menu_prices",
+]);
 export function requireReadOnly(name: string) {
   if (!READ_ONLY_TOOLS.has(name))
     throw new Error(
@@ -14,6 +22,7 @@ export class EvaluationBudget {
   inputTokens = 0;
   outputTokens = 0;
   calls = 0;
+  private pendingInputBounds: number[] = [];
   constructor(
     readonly maximumUsd: number,
     readonly maximumOutputTokens = MAX_OUTPUT_TOKENS,
@@ -46,6 +55,7 @@ export class EvaluationBudget {
         "Evaluation spending cutoff reached before another model call.",
       );
     this.reservedUsd += usd;
+    this.pendingInputBounds.push(inputBound);
     this.calls++;
     return { inputBound, usd };
   }
@@ -63,10 +73,24 @@ export class EvaluationBudget {
     this.outputTokens += output;
     this.reportedUsd +=
       (input * INPUT_USD_PER_MILLION + output * OUTPUT_USD_PER_MILLION) / 1e6;
-    if (input > bound || output > this.maximumOutputTokens)
+    if (input > bound || output > this.maximumOutputTokens) {
+      this.reservedUsd = Math.max(this.reservedUsd, this.reportedUsd);
       throw new Error(
         "Provider usage exceeded the conservative request bound; stop evaluation.",
       );
+    }
+    const pending = this.pendingInputBounds.indexOf(bound);
+    if (pending < 0)
+      throw new Error(
+        "Provider usage has no unsettled reservation; stop evaluation.",
+      );
+    // Settle only a known, validated response. Unknown calls retain their full
+    // worst-case reservation; confirmed unused output capacity is not spend.
+    this.pendingInputBounds.splice(pending, 1);
+    this.reservedUsd -=
+      ((bound - input) * INPUT_USD_PER_MILLION +
+        (this.maximumOutputTokens - output) * OUTPUT_USD_PER_MILLION) /
+      1e6;
   }
 }
 export function remainingBudget(

@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { createServer, request as httpRequest } from "node:http";
 import { randomUUID } from "node:crypto";
-import { store, config, transaction, RESTAURANT } from "@saygo/db";
+import { store, config, transaction, RESTAURANT, entities } from "@saygo/db";
 import {
   beginInteraction,
   scopeForToken,
@@ -95,6 +95,103 @@ beforeEach(async () => {
   token = started.token;
 });
 describe("DynamoDB, real MCP and durable ordering", () => {
+  it("compares menu prices over HTTP without changing any entity, quote or approval", async () => {
+    await add();
+    const quote = await review();
+    await approve({ ...scope, actor: "customer" }, quote.id);
+    const snapshot = () =>
+      transaction(async (tx) =>
+        Object.fromEntries(
+          await Promise.all(
+            entities.map(async (entity) => [entity, await tx.list(entity)]),
+          ),
+        ),
+      );
+    const before = await snapshot();
+    const m = await openMcp(agentToken(scope));
+    try {
+      expect(
+        m.tools.find((t) => t.name === "compare_menu_prices")?.annotations,
+      ).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      });
+      const { timing: _timing, ...comparison } = await m.call(
+        "compare_menu_prices",
+        {
+          options: [
+            {
+              label: "reference",
+              selections: [
+                {
+                  product_id: "cheeseburger-meal",
+                  choices: { drink: ["cola"] },
+                },
+              ],
+            },
+            {
+              label: "upgraded",
+              selections: [
+                {
+                  product_id: "cheeseburger-meal",
+                  choices: { drink: ["lemonade"] },
+                },
+              ],
+            },
+          ],
+        },
+      );
+      const result = toolDataSchemas.compare_menu_prices.parse(comparison);
+      expect(result.options.map((o) => o.totals.subtotal)).toEqual([
+        1175, 1225,
+      ]);
+      expect(result.comparisons[0].subtotal_delta_cents).toBe(50);
+      // The bundled call adds local timing; the strict wire payload is unchanged.
+      expect(await snapshot()).toEqual(before);
+      expect((await getView(scope)).quote).toMatchObject({
+        id: quote.id,
+        approved: true,
+      });
+      await expect(
+        m.call("compare_menu_prices", {
+          options: [
+            { label: "invalid", selections: [{ product_id: "tenders" }] },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        recovery: {
+          code: "INCOMPLETE_SELECTION",
+          next_action: "correct_arguments",
+        },
+      });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await m.close();
+    }
+  });
+  it("uses current menu prices and availability for comparisons, and honors staff fences", async () => {
+    const m = await openMcp(agentToken(scope));
+    const input = {
+      options: [{ label: "snack", selections: [{ product_id: "slaw" }] }],
+    };
+    try {
+      expect(
+        (await m.call("compare_menu_prices", input)).options,
+      ).toMatchObject([{ totals: { subtotal: 250 } }]);
+      await updateProduct("slaw", { variants: { regular: 280 } });
+      expect(
+        (await m.call("compare_menu_prices", input)).options,
+      ).toMatchObject([{ totals: { subtotal: 280 } }]);
+      await staffAction({ ...scope, actor: "staff" }, "takeover");
+      await expect(m.call("compare_menu_prices", input)).rejects.toMatchObject({
+        recovery: { code: "FENCED" },
+      });
+    } finally {
+      await m.close();
+    }
+  });
   it("rolls back an interrupted multi-entity transaction", async () => {
     const before = await store.get("restaurants", RESTAURANT);
     await expect(
@@ -199,7 +296,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         agentToken(scope),
       );
       expect(result.initialized.result.protocolVersion).toBe("2025-11-25");
-      expect(result.listed.result.tools).toHaveLength(9);
+      expect(result.listed.result.tools).toHaveLength(10);
       const errors = (result.listed.schemaFindings ?? [])
         .flatMap((t: { findings: { severity: string }[] }) => t.findings)
         .filter((f: { severity: string }) => f.severity === "error");
@@ -448,6 +545,17 @@ describe("DynamoDB, real MCP and durable ordering", () => {
       expect(reviewTool.annotations?.idempotentHint).toBe(true);
       await call("get_menu");
       await call("get_item_details", { product_id: "cheeseburger" });
+      await call("compare_menu_prices", {
+        options: [
+          { label: "baseline", selections: [{ product_id: "cheeseburger" }] },
+          {
+            label: "extra",
+            selections: [
+              { product_id: "cheeseburger", choices: { extra: ["cheese"] } },
+            ],
+          },
+        ],
+      });
       await call("apply_cart_changes", {
         expected_version: 0,
         request_id: randomUUID(),
@@ -477,7 +585,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         reason: "allergy",
         concern: "Restricted test concern",
       });
-      expect(called.size).toBe(9);
+      expect(called.size).toBe(10);
     } finally {
       await m.close();
     }
@@ -786,7 +894,11 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     const me = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
     const identity = await me.json();
     expect(me.status).toBe(200);
-    expect(Object.keys(identity).sort()).toEqual(["id", "restaurant_id", "role"]);
+    expect(Object.keys(identity).sort()).toEqual([
+      "id",
+      "restaurant_id",
+      "role",
+    ]);
     expect(identity.role).toBe("crew");
     const admin = await fetch(`${base}/api/admin`, {
       headers: { Cookie: cookie },
@@ -803,7 +915,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     expect(forged.status).toBe(401);
     expect((await fetch(`${base}/api/kitchen`)).status).toBe(401);
   });
-  it("negotiates MCP 2025-11-25, discovers nine tools and calls get_cart", async () => {
+  it("negotiates MCP 2025-11-25, discovers ten tools and calls get_cart", async () => {
     const response = await fetch(
       `http://127.0.0.1:${config.SAYGO_RUNTIME_PORT}/mcp`,
       {
@@ -829,7 +941,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     expect((await response.json()).result.protocolVersion).toBe("2025-11-25");
     const m = await openMcp(agentToken(scope));
     try {
-      expect(m.tools).toHaveLength(9);
+      expect(m.tools).toHaveLength(10);
       expect((await m.call("get_cart", {})).cart_version).toBe(0);
     } finally {
       await m.close();

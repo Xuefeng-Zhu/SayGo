@@ -21,6 +21,7 @@ import {
 } from "@saygo/db";
 import type { SessionRow } from "../../db/src/schema.js";
 import { applyCommands, assert, priceCart, product } from "./engine.js";
+import { compareMenuPrices } from "./menu-prices.js";
 export const hash = (value: unknown) =>
   createHash("sha256")
     .update(typeof value === "string" ? value : JSON.stringify(value))
@@ -399,6 +400,7 @@ export async function tool(
         summary:
           "Use only the listed choices. Ask staff about allergies or cross-contact.",
       };
+    if (name === "compare_menu_prices") return compareMenuPrices(c.menu, args);
     if (name === "get_cart" || name === "get_order_status")
       return { ...(await view(c)) };
     if (name === "request_staff_help") {

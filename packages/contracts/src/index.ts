@@ -44,6 +44,45 @@ const selection = {
   choices: choiceSchema.default({}),
   quantity: quantity.default(1),
 };
+export const menuPriceSelectionSchema = z
+  .object({
+    ...selection,
+    meal: z
+      .object({ drink: id, drink_variant: variant })
+      .strict()
+      .optional()
+      .describe(
+        "Optional conversion of an eligible standalone sandwich to a meal. For a listed meal product, choose its drink through choices instead.",
+      ),
+  })
+  .strict();
+export const menuPriceInputSchema = z
+  .object({
+    options: z
+      .array(
+        z
+          .object({
+            label: z
+              .string()
+              .regex(/^[A-Za-z0-9_-]{1,40}$/)
+              .describe(
+                "Unique label for this candidate, e.g. baseline or upgraded. The FIRST option is the comparison baseline.",
+              ),
+            selections: z.array(menuPriceSelectionSchema).min(1).max(10),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(8)
+      .describe(
+        "Complete hypothetical selections to price without changing the cart. Each later option is compared against the first; positive delta means MORE expensive.",
+      ),
+  })
+  .strict()
+  .refine(
+    (v) => new Set(v.options.map((x) => x.label)).size === v.options.length,
+    "Use unique option labels.",
+  );
 export const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("add"), ...selection }).strict(),
   z
@@ -91,6 +130,7 @@ export const changesSchema = z
 export const toolSchemas = {
   get_menu: z.object({}).strict(),
   get_item_details: z.object({ product_id: id }).strict(),
+  compare_menu_prices: menuPriceInputSchema,
   get_cart: z.object({}).strict(),
   apply_cart_changes: changesSchema,
   prepare_order_review: z

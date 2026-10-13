@@ -26,6 +26,7 @@ export function toolData(name: ToolName, raw: Record<string, unknown>) {
   switch (name) {
     case "get_menu":
     case "get_item_details":
+    case "compare_menu_prices":
       data = raw;
       break;
     case "get_order_status":

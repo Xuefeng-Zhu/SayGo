@@ -1,6 +1,40 @@
-# MCP contracts, version 0.2
+# MCP contracts, version 0.3
 
-The existing nine tools still run through the authenticated Streamable HTTP endpoint. This revision changes their data contract; it does not add a transport, OAuth, a deployment, or live provider verification. The MCP-builder skill informed schema-first validation and recovery metadata; the web-testing skill informed regression checks of the existing customer and staff workflows.
+## Read-only price comparisons — October 13, 2026
+
+The current catalog has **ten** tools. `compare_menu_prices` takes one to eight uniquely labeled options, each containing one to ten selections (at most 30 item copies per option). Product IDs, variants and choices come from menu discovery. Missing multi-size variants, required choices, unavailable components and unsupported conversions fail closed. A listed meal chooses its drink through `choices.drink`; eligible standalone sandwiches may use `meal: {drink, drink_variant}` for conversion.
+
+The result contains current `menu_version` / `price_version`, currency, per-option priced lines and totals, and signed `subtotal_delta_cents` for each later option relative to the FIRST option. Positive costs more; negative saves. `absolute_subtotal_difference_cents` separately reports the nonnegative price gap and `more_expensive_label` identifies the premium-bearing option (null for a tie). These fields prevent input ordering from silently redefining an unsigned upgrade/premium; explicit signed comparisons retain their sign. Both totals and modifiers use the existing ordering engine, including the simulator's fixture tax. This is an informational read, not a held quote or approval. It respects the same restaurant, lane, session and staff fences, and does not change any persisted entity. Existing tool inputs and result envelopes are unchanged.
+
+Example input:
+
+```json
+{
+  "options": [
+    {
+      "label": "baseline",
+      "selections": [
+        { "product_id": "cheeseburger-meal", "choices": { "drink": ["cola"] } }
+      ]
+    },
+    {
+      "label": "upgraded",
+      "selections": [
+        {
+          "product_id": "cheeseburger-meal",
+          "choices": { "drink": ["lemonade"] }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The MCP-builder guide informed the workflow tool, strict schema validation, read-only annotations and independently verifiable evaluations. Primary references: [MCP tools and structured results](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [pinned SDK generation](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x), and [Nova Converse reasoning/tool use](https://docs.aws.amazon.com/nova/latest/nova2-userguide/using-converse-api.html). The repository's SDK generation was retained; this is not a v2 migration.
+
+## Historical 0.2 contract changes
+
+The original nine tools still run through the authenticated Streamable HTTP endpoint. The historical 0.2 revision below changed their data contract; it did not add a transport, OAuth, a deployment, or live provider verification. Its PostgreSQL migration notes describe the old storage layer; current setup and import guidance is in [DynamoDB](dynamodb.md).
 
 ## Upgrade notes
 

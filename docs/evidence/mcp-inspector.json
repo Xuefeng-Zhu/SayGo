@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-10-13T09:35:27.784Z",
+  "measured_at": "2026-10-13T17:59:18.355Z",
   "inspector_version": "2.10.1",
   "protocol_version": "2025-11-25",
-  "tools_discovered": 9,
+  "tools_discovered": 10,
   "strict_schema_findings": [],
   "read_only_call": "get_cart",
   "result_validated": true,

@@ -2,13 +2,14 @@ import type { Product } from "@saygo/contracts";
 
 // Fixed Harbor Burger v1 fixture. Only the verifier knows these calculations;
 // an evaluated agent receives the XML questions and read-only MCP tools.
-export const mcpEvaluations: {
+export type MenuEvaluation = {
   id: string;
   question: string;
   answer: string;
   products: string[];
   solve: (products: Record<string, Product>) => string;
-}[] = [
+};
+export const mcpEvaluations: MenuEvaluation[] = [
   {
     id: "cheapest-burger-meal",
     question:
