@@ -1,4 +1,4 @@
-import { pool, transaction, RESTAURANT } from "@saygo/db";
+import { store, transaction, RESTAURANT } from "@saygo/db";
 import { randomUUID } from "node:crypto";
 export type PosResult = { status: "accepted" | "rejected" };
 export interface PosAdapter {
@@ -7,159 +7,215 @@ export interface PosAdapter {
 }
 export class SandboxPos implements PosAdapter {
   async lookup(key: string, payloadHash: string) {
-    const row = (
-      await pool.query(
-        "SELECT *,visible_at<=now() AS visible FROM pos_receipts WHERE external_key=$1",
-        [key],
-      )
-    ).rows[0];
+    const row = await store.get("pos_receipts", key);
     if (row && row.payload_hash !== payloadHash)
       throw new Error("POS idempotency payload mismatch");
-    return row && row.visible
-      ? { status: row.status as PosResult["status"] }
+    return row && new Date(row.visible_at).getTime() <= Date.now()
+      ? { status: row.status }
       : null;
   }
   async submit(key: string, payloadHash: string): Promise<PosResult> {
-    const mode = (
-      await pool.query("SELECT pos_mode FROM restaurants WHERE id=$1", [
-        RESTAURANT,
-      ])
-    ).rows[0].pos_mode;
-    const status = mode === "reject" ? "rejected" : "accepted";
-    // A separate durable store models an external system that may accept before transport failure.
-    const row = await transaction(async (tx) => {
-      await tx.query(
-        "INSERT INTO pos_receipts(external_key,payload_hash,status,visible_at) VALUES($1,$2,$3,now()+($4::int*interval '1 second')) ON CONFLICT DO NOTHING",
-        [
-          key,
-          payloadHash,
-          status,
-          mode === "delay" ? 8 : mode === "unknown" ? 3 : 0,
-        ],
-      );
-      return (
-        await tx.query(
-          "SELECT *,visible_at<=now() AS visible FROM pos_receipts WHERE external_key=$1",
-          [key],
-        )
-      ).rows[0];
+    const { row, mode } = await transaction(async (tx) => {
+      const mode = (await tx.get("restaurants", RESTAURANT))!.pos_mode;
+      let row = await tx.get("pos_receipts", key);
+      if (!row) {
+        row = {
+          external_key: key,
+          payload_hash: payloadHash,
+          status:
+            mode === "reject" ? ("rejected" as const) : ("accepted" as const),
+          visible_at: new Date(
+            Date.now() +
+              (mode === "delay" ? 8000 : mode === "unknown" ? 3000 : 0),
+          ).toISOString(),
+          created_at: new Date().toISOString(),
+        };
+        tx.put("pos_receipts", row);
+      }
+      return { row, mode };
     });
     if (row.payload_hash !== payloadHash)
       throw new Error("POS idempotency payload mismatch");
-    if (mode === "unknown" || !row.visible)
+    if (mode === "unknown" || new Date(row.visible_at).getTime() > Date.now())
       throw new Error(
         "Sandbox acknowledgement unavailable; acceptance may have occurred",
       );
     return { status: row.status };
   }
 }
+async function recordAttempt(
+  order_id: string,
+  operation: string,
+  outcome: string,
+) {
+  await store.put("pos_attempts", {
+    id: randomUUID(),
+    order_id,
+    operation,
+    outcome,
+    created_at: new Date().toISOString(),
+  });
+}
 export async function runOneJob(
   adapter: PosAdapter = new SandboxPos(),
 ): Promise<boolean> {
   const lease = randomUUID();
   const job = await transaction(async (tx) => {
-    const row = (
-      await tx.query(
-        `SELECT * FROM jobs WHERE (state='pending' AND available_at<=now()) OR (state='leased' AND lease_until<now()) ORDER BY available_at FOR UPDATE SKIP LOCKED LIMIT 1`,
-      )
-    ).rows[0];
-    if (!row) return null;
-    await tx.query(
-      "UPDATE jobs SET state='leased',lease_until=now()+interval '30 seconds',lease_token=$2,attempts=attempts+1 WHERE id=$1",
-      [row.id, lease],
+    const rows = await tx.list(
+      "jobs",
+      (j) =>
+        (j.state === "pending" &&
+          new Date(j.available_at).getTime() <= Date.now()) ||
+        (j.state === "leased" &&
+          j.lease_until !== null &&
+          new Date(j.lease_until).getTime() < Date.now()),
     );
-    return row;
+    const row = rows.sort((a, b) =>
+      a.available_at.localeCompare(b.available_at),
+    )[0];
+    if (!row) return null;
+    return tx.update("jobs", row.id, {
+      state: "leased",
+      lease_until: new Date(Date.now() + 30000).toISOString(),
+      lease_token: lease,
+      attempts: row.attempts + 1,
+    });
   });
   if (!job) return false;
-  const order = (
-    await pool.query("SELECT * FROM orders WHERE id=$1", [job.order_id])
-  ).rows[0];
+  const order = (await store.list("orders", (o) => o.id === job.order_id))[0];
+  if (!order) throw new Error("Job has no order");
   let result: PosResult | null = null;
   try {
     result = await adapter.lookup(order.external_key, order.payload_hash);
-    await pool.query(
-      "INSERT INTO pos_attempts(order_id,operation,outcome) VALUES($1,'lookup',$2)",
-      [order.id, result?.status ?? "not_visible"],
-    );
+    await recordAttempt(order.id, "lookup", result?.status ?? "not_visible");
     if (!result) {
       result = await adapter.submit(order.external_key, order.payload_hash);
-      await pool.query(
-        "INSERT INTO pos_attempts(order_id,operation,outcome) VALUES($1,'submit',$2)",
-        [order.id, result.status],
-      );
+      await recordAttempt(order.id, "submit", result.status);
     }
   } catch {
-    await pool.query(
-      "INSERT INTO pos_attempts(order_id,operation,outcome) VALUES($1,'reconcile','unknown')",
-      [order.id],
-    );
+    await recordAttempt(order.id, "reconcile", "unknown");
   }
   await transaction(async (tx) => {
-    // Fencing prevents a slow worker from overwriting a reclaimed lease's result.
-    const owns = (
-      await tx.query(
-        "SELECT id FROM jobs WHERE id=$1 AND lease_token=$2 AND state='leased' FOR UPDATE",
-        [job.id, lease],
-      )
-    ).rowCount;
-    if (!owns) return;
+    const current = await tx.get("jobs", job.id);
+    if (current?.lease_token !== lease || current.state !== "leased") return;
+    const latest = await tx.get("orders", order.session_id);
+    if (latest && ["submitted", "unknown"].includes(latest.status))
+      await tx.update("orders", latest.session_id, {
+        status: result?.status ?? "unknown",
+        updated_at: new Date().toISOString(),
+      });
+    const handoffs = await tx.list(
+      "handoffs",
+      (h) =>
+        h.session_id === order.session_id &&
+        h.reason === "pos_unknown" &&
+        !h.resolved,
+    );
     if (result) {
-      await tx.query(
-        "UPDATE orders SET status=$2,updated_at=now() WHERE id=$1 AND status IN ('submitted','unknown')",
-        [order.id, result.status],
-      );
-      await tx.query(
-        "UPDATE jobs SET state='done',lease_until=NULL WHERE id=$1",
-        [job.id],
-      );
-      await tx.query(
-        "UPDATE handoffs SET resolved=true WHERE session_id=$1 AND reason='pos_unknown'",
-        [order.session_id],
-      );
+      await tx.update("jobs", job.id, { state: "done", lease_until: null });
+      for (const h of handoffs)
+        await tx.update("handoffs", h.id, { resolved: true });
     } else {
-      await tx.query(
-        "UPDATE orders SET status='unknown',updated_at=now() WHERE id=$1 AND status IN ('submitted','unknown')",
-        [order.id],
-      );
-      await tx.query(
-        "INSERT INTO handoffs(id,session_id,reason) SELECT $1,$2,'pos_unknown' WHERE NOT EXISTS(SELECT 1 FROM handoffs WHERE session_id=$2 AND reason='pos_unknown' AND NOT resolved)",
-        [randomUUID(), order.session_id],
-      );
-      await tx.query(
-        "UPDATE jobs SET state='pending',available_at=now()+($2::int*interval '1 second'),lease_until=NULL WHERE id=$1",
-        [job.id, job.attempts >= 5 ? 30 : 2],
-      );
+      if (!handoffs.length)
+        tx.put("handoffs", {
+          id: randomUUID(),
+          session_id: order.session_id,
+          reason: "pos_unknown",
+          concern: null,
+          resolved: false,
+          created_at: new Date().toISOString(),
+        });
+      await tx.update("jobs", job.id, {
+        state: "pending",
+        available_at: new Date(
+          Date.now() + (job.attempts >= 5 ? 30000 : 2000),
+        ).toISOString(),
+        lease_until: null,
+      });
     }
   });
   return true;
 }
 export async function cleanup() {
-  await transaction(async (tx) => {
-    await tx.query(
-      "UPDATE interactions SET status='ended',fence=fence+1,staff_message=NULL WHERE status='active' AND expires_at<now()",
+  const now = Date.now(),
+    hour = 3600000,
+    day = 24 * hour;
+  // Bounded transactions keep retention work below DynamoDB's 100-action limit.
+  for (const s of await store.list("interactions"))
+    await transaction(async (tx) => {
+      const row = await tx.get("interactions", s.id);
+      if (!row) return;
+      const patch: Partial<typeof row> = {};
+      if (row.status === "active" && new Date(row.expires_at).getTime() < now)
+        Object.assign(patch, {
+          status: "ended",
+          fence: row.fence + 1,
+          staff_message: null,
+          active_quote_id: null,
+        });
+      if (
+        (patch.status ?? row.status) === "ended" &&
+        new Date(row.created_at).getTime() < now - hour
+      )
+        Object.assign(patch, { staff_message: null, token_hash: "expired" });
+      if (
+        Object.keys(patch).some(
+          (k) => patch[k as keyof typeof row] !== row[k as keyof typeof row],
+        )
+      )
+        await tx.update("interactions", row.id, patch);
+      if (
+        (patch.status ?? row.status) === "ended" &&
+        new Date(row.created_at).getTime() < now - day
+      ) {
+        const cart = await tx.get("carts", row.id);
+        if (cart && (cart.lines.length || cart.issues.length))
+          await tx.update("carts", row.id, { lines: [], issues: [] });
+      }
+    });
+  for (const q of await store.list(
+    "quotes",
+    (q) => new Date(q.expires_at).getTime() < now,
+  ))
+    await transaction(async (tx) => {
+      const row = await tx.get("quotes", q.id);
+      if (row) {
+        const patch = {
+          valid: false,
+          ...(new Date(row.expires_at).getTime() < now - 7 * day
+            ? { snapshot: { ...row.snapshot, lines: [] } }
+            : {}),
+        };
+        if (row.valid || ("snapshot" in patch && row.snapshot.lines.length))
+          await tx.update("quotes", row.id, patch);
+      }
+    });
+  for (const h of await store.list(
+    "handoffs",
+    (h) => Boolean(h.concern) && new Date(h.created_at).getTime() < now - hour,
+  ))
+    await store.update("handoffs", h.id, { concern: null });
+  for (const o of await store.list(
+    "orders",
+    (o) =>
+      o.snapshot.lines.length > 0 &&
+      new Date(o.created_at).getTime() < now - 7 * day &&
+      ["handed_off", "rejected"].includes(o.status),
+  ))
+    await store.update("orders", o.session_id, {
+      snapshot: { ...o.snapshot, lines: [] },
+    });
+  for (const entity of ["audit", "idempotency"] as const) {
+    const expired = await store.list(
+      entity,
+      (r) =>
+        new Date(r.created_at).getTime() <
+        now - (entity === "audit" ? 7 * day : day),
     );
-    await tx.query("UPDATE quotes SET valid=false WHERE expires_at<now()");
-    await tx.query(
-      "UPDATE handoffs SET concern=NULL WHERE created_at<now()-interval '1 hour'",
-    );
-    await tx.query(
-      "UPDATE interactions SET staff_message=NULL,token_hash='expired' WHERE status='ended' AND created_at<now()-interval '1 hour'",
-    );
-    await tx.query(
-      "UPDATE carts SET lines='[]',issues='[]' WHERE session_id IN (SELECT id FROM interactions WHERE status='ended' AND created_at<now()-interval '24 hours')",
-    );
-    await tx.query(
-      "DELETE FROM audit WHERE created_at<now()-interval '7 days'",
-    );
-    await tx.query(
-      "DELETE FROM idempotency WHERE created_at<now()-interval '24 hours'",
-    );
-    // Keep minimal foreign-key skeletons; redact item details after seven days.
-    await tx.query(
-      "UPDATE orders SET snapshot=jsonb_set(snapshot,'{lines}','[]') WHERE created_at<now()-interval '7 days' AND status IN ('handed_off','rejected')",
-    );
-    await tx.query(
-      "UPDATE quotes SET snapshot=jsonb_set(snapshot,'{lines}','[]') WHERE expires_at<now()-interval '7 days'",
-    );
-  });
+    for (let i = 0; i < expired.length; i += 90)
+      await transaction(async (tx) => {
+        for (const row of expired.slice(i, i + 90))
+          tx.delete(entity, "key" in row ? row.key : row.id);
+      });
+  }
 }

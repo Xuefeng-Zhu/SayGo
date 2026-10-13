@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { app } from "./app.js";
 import { attachVoice } from "./voice.js";
-import { config, pool } from "@saygo/db";
+import { config, store } from "@saygo/db";
 const server = createServer(app),
   voices = attachVoice(server);
 server.listen(config.SAYGO_RUNTIME_PORT, "127.0.0.1", () =>
@@ -14,6 +14,6 @@ for (const signal of ["SIGINT", "SIGTERM"])
     for (const ws of voices.clients) ws.close();
     voices.close();
     server.close(() => {
-      void pool.end();
+      void store.close();
     });
   });

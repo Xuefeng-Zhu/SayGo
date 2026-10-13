@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import { pool, config, RESTAURANT, transaction } from "@saygo/db";
+import { store, config, RESTAURANT, transaction } from "@saygo/db";
 import {
   DomainError,
   assert,
@@ -13,6 +13,7 @@ import {
   updateProduct,
   kitchenTransition,
   tool,
+  resetDemo,
 } from "@saygo/domain";
 import {
   recoveryFor,
@@ -96,7 +97,7 @@ app.all("/mcp", (_req, res) => {
 });
 app.use(express.json({ limit: "64kb" }));
 app.get("/health", async (_req, res) => {
-  await pool.query("SELECT 1");
+  await store.health();
   res.json({
     ok: true,
     pos: "sandbox",
@@ -230,11 +231,8 @@ app.get("/api/crew", async (req, res) => {
   const view = scope ? await getView(scope) : null;
   const handoffs = scope
     ? (
-        await pool.query(
-          "SELECT id,reason,concern,resolved,created_at FROM handoffs WHERE session_id=$1 ORDER BY created_at DESC",
-          [scope.session_id],
-        )
-      ).rows
+        await store.list("handoffs", (h) => h.session_id === scope.session_id)
+      ).sort((a, b) => b.created_at.localeCompare(a.created_at))
     : [];
   res.json({ view, handoffs });
 });
@@ -277,11 +275,22 @@ app.get("/api/kitchen", async (req, res) => {
   await staff(req);
   res.json({
     orders: (
-      await pool.query(
-        "SELECT id,number,status,snapshot,created_at,updated_at FROM orders WHERE restaurant_id=$1 AND status IN ('accepted','preparing','ready') ORDER BY created_at",
-        [RESTAURANT],
+      await store.list(
+        "orders",
+        (o) =>
+          o.restaurant_id === RESTAURANT &&
+          ["accepted", "preparing", "ready"].includes(o.status),
       )
-    ).rows,
+    )
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map(({ id, number, status, snapshot, created_at, updated_at }) => ({
+        id,
+        number,
+        status,
+        snapshot,
+        created_at,
+        updated_at,
+      })),
   });
 });
 app.post("/api/kitchen/transition", async (req, res) => {
@@ -298,25 +307,23 @@ app.post("/api/kitchen/transition", async (req, res) => {
 });
 app.get("/api/admin", async (req, res) => {
   await staff(req, ["admin"]);
-  const products = (
-    await pool.query(
-      "SELECT data FROM products WHERE restaurant_id=$1 ORDER BY id",
-      [RESTAURANT],
-    )
-  ).rows.map((r) => r.data);
-  const settings = (
-    await pool.query(
-      "SELECT instructions,upsell_enabled,pos_mode FROM restaurants WHERE id=$1",
-      [RESTAURANT],
-    )
-  ).rows[0];
-  const users = (
-    await pool.query(
-      "SELECT id,role,enabled FROM staff_users WHERE restaurant_id=$1",
-      [RESTAURANT],
-    )
-  ).rows;
-  res.json({ products, settings, users });
+  res.json(
+    await transaction(async (tx) => {
+      const products = (await tx.list("products"))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((r) => r.data);
+      const restaurant = (await tx.get("restaurants", RESTAURANT))!;
+      const settings = {
+        instructions: restaurant.instructions,
+        upsell_enabled: restaurant.upsell_enabled,
+        pos_mode: restaurant.pos_mode,
+      };
+      const users = (await tx.list("staff_users")).map(
+        ({ id, role, enabled }) => ({ id, role, enabled }),
+      );
+      return { products, settings, users };
+    }),
+  );
 });
 const group = z.object({
   label: z.string().max(60),
@@ -356,10 +363,7 @@ app.post("/api/admin/settings", async (req, res) => {
     })
     .strict()
     .parse(req.body);
-  await pool.query(
-    "UPDATE restaurants SET instructions=$2,upsell_enabled=$3 WHERE id=$1",
-    [RESTAURANT, a.instructions, a.upsell_enabled],
-  );
+  await store.update("restaurants", RESTAURANT, a);
   res.json({ ok: true });
 });
 app.post("/api/admin/user", async (req, res) => {
@@ -368,10 +372,7 @@ app.post("/api/admin/user", async (req, res) => {
     .object({ id: z.enum(["crew", "kitchen"]), enabled: z.boolean() })
     .strict()
     .parse(req.body);
-  await pool.query(
-    "UPDATE staff_users SET enabled=$2 WHERE id=$1 AND restaurant_id=$3",
-    [a.id, a.enabled, RESTAURANT],
-  );
+  await store.update("staff_users", a.id, { enabled: a.enabled });
   res.json({ ok: true });
 });
 app.post("/api/demo", async (req, res) => {
@@ -396,66 +397,20 @@ app.post("/api/demo", async (req, res) => {
     })
     .strict()
     .parse(req.body);
-  if (a.action === "retry")
-    await pool.query(
-      "UPDATE jobs SET available_at=now() WHERE state='pending' AND order_id IN (SELECT id FROM orders WHERE restaurant_id=$1)",
-      [RESTAURANT],
-    );
-  else if (a.action === "reset") {
+  if (a.action === "retry") {
+    for (const job of await store.list("jobs", (j) => j.state === "pending"))
+      await store.update("jobs", job.id, {
+        available_at: new Date().toISOString(),
+      });
+  } else if (a.action === "reset") {
     assert(
       a.confirmation === "RESET HARBOR DEMO",
       "RESET",
       "Type RESET HARBOR DEMO to clear fictional orders.",
       400,
     );
-    await transaction(async (tx) => {
-      await tx.query("SELECT id FROM restaurants WHERE id=$1 FOR UPDATE", [
-        RESTAURANT,
-      ]);
-      const jobs = await tx.query(
-        "SELECT j.state FROM jobs j JOIN orders o ON o.id=j.order_id WHERE o.restaurant_id=$1 FOR UPDATE OF j",
-        [RESTAURANT],
-      );
-      assert(
-        !jobs.rows.some((j) => j.state === "leased"),
-        "WORKER_BUSY",
-        "Wait for the current sandbox attempt to finish before resetting.",
-      );
-      await tx.query(
-        "DELETE FROM pos_attempts WHERE order_id IN(SELECT id FROM orders WHERE restaurant_id=$1)",
-        [RESTAURANT],
-      );
-      await tx.query(
-        "DELETE FROM jobs WHERE order_id IN(SELECT id FROM orders WHERE restaurant_id=$1)",
-        [RESTAURANT],
-      );
-      await tx.query(
-        "DELETE FROM pos_receipts WHERE external_key IN(SELECT external_key FROM orders WHERE restaurant_id=$1)",
-        [RESTAURANT],
-      );
-      await tx.query("DELETE FROM orders WHERE restaurant_id=$1", [RESTAURANT]);
-      for (const table of ["approvals", "quotes", "handoffs", "carts"])
-        await tx.query(
-          `DELETE FROM ${table} WHERE session_id IN(SELECT id FROM interactions WHERE restaurant_id=$1)`,
-          [RESTAURANT],
-        );
-      await tx.query(
-        "DELETE FROM audit WHERE session_id IN(SELECT id FROM interactions WHERE restaurant_id=$1)",
-        [RESTAURANT],
-      );
-      await tx.query(
-        "UPDATE lanes SET current_session=NULL,epoch=epoch+1 WHERE restaurant_id=$1",
-        [RESTAURANT],
-      );
-      await tx.query("DELETE FROM interactions WHERE restaurant_id=$1", [
-        RESTAURANT,
-      ]);
-    });
-  } else
-    await pool.query("UPDATE restaurants SET pos_mode=$2 WHERE id=$1", [
-      RESTAURANT,
-      a.action,
-    ]);
+    await resetDemo();
+  } else await store.update("restaurants", RESTAURANT, { pos_mode: a.action });
   res.json({ ok: true });
 });
 app.use(

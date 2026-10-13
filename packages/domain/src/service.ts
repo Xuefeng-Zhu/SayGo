@@ -11,43 +11,31 @@ import type {
 } from "@saygo/contracts";
 import { toolSchemas } from "@saygo/contracts";
 import type { ToolName } from "@saygo/contracts";
-import { config, RESTAURANT, pool, transaction, type Tx } from "@saygo/db";
+import {
+  config,
+  RESTAURANT,
+  transaction,
+  maintenance,
+  clearEntities,
+  type Tx,
+} from "@saygo/db";
+import type { SessionRow } from "../../db/src/schema.js";
 import { applyCommands, assert, priceCart, product } from "./engine.js";
 export const hash = (value: unknown) =>
   createHash("sha256")
     .update(typeof value === "string" ? value : JSON.stringify(value))
     .digest("hex");
-type Session = {
-  id: string;
-  restaurant_id: string;
-  lane_id: string;
-  epoch: number;
-  fence: number;
-  owner: "ai" | "staff";
-  status: string;
-  staff_message: string | null;
-  needs_staff_review: boolean;
-  expires_at: Date;
-  token_hash: string;
-  voice_until: Date | null;
-};
+type Session = SessionRow;
 type Context = { tx: Tx; s: Session; cart: Cart; menu: Menu; scope: Scope };
 async function loadMenu(tx: Tx): Promise<Menu> {
-  const r = (
-    await tx.query("SELECT * FROM restaurants WHERE id=$1 FOR UPDATE", [
-      RESTAURANT,
-    ])
-  ).rows[0];
+  const r = await tx.get("restaurants", RESTAURANT);
   assert(r, "NOT_SEEDED", "Run pnpm db:seed.", 503);
-  const rows = await tx.query<{ data: Product }>(
-    "SELECT data FROM products WHERE restaurant_id=$1 ORDER BY id",
-    [RESTAURANT],
-  );
+  const rows = await tx.list("products", (p) => p.restaurant_id === RESTAURANT);
   return {
     version: r.menu_version,
     price_version: r.price_version,
     currency: "USD",
-    products: rows.rows.map((r) => r.data),
+    products: rows.sort((a, b) => a.id.localeCompare(b.id)).map((r) => r.data),
     instructions: r.instructions,
     upsell_enabled: r.upsell_enabled,
   };
@@ -60,12 +48,18 @@ async function context(tx: Tx, scope: Scope): Promise<Context> {
     403,
   );
   const menu = await loadMenu(tx);
-  const s = (
-    await tx.query<Session>(
-      `SELECT i.* FROM interactions i JOIN lanes l ON l.current_session=i.id WHERE i.id=$1 AND i.lane_id=$2 AND i.restaurant_id=$3 AND i.epoch=$4 AND i.status='active' AND i.expires_at>now() FOR UPDATE OF i`,
-      [scope.session_id, scope.lane_id, scope.restaurant_id, scope.epoch],
-    )
-  ).rows[0];
+  const lane = await tx.get("lanes", scope.lane_id);
+  const candidate = await tx.get("interactions", scope.session_id);
+  const s =
+    candidate &&
+    lane?.current_session === candidate.id &&
+    candidate.lane_id === scope.lane_id &&
+    candidate.restaurant_id === scope.restaurant_id &&
+    candidate.epoch === scope.epoch &&
+    candidate.status === "active" &&
+    new Date(candidate.expires_at).getTime() > Date.now()
+      ? candidate
+      : null;
   assert(
     s,
     "SESSION_EXPIRED",
@@ -79,9 +73,8 @@ async function context(tx: Tx, scope: Scope): Promise<Context> {
       "Staff control or session changes stopped this agent.",
       403,
     );
-  const row = (
-    await tx.query("SELECT * FROM carts WHERE session_id=$1 FOR UPDATE", [s.id])
-  ).rows[0];
+  const row = await tx.get("carts", s.id);
+  assert(row, "CART", "This interaction has no cart.", 503);
   return {
     tx,
     s,
@@ -97,27 +90,25 @@ export async function withScope<T>(
   return transaction(async (tx) => fn(await context(tx, scope)));
 }
 async function invalidate(c: Context) {
-  await c.tx.query("UPDATE quotes SET valid=false WHERE session_id=$1", [
-    c.s.id,
-  ]);
+  if (c.s.active_quote_id) {
+    const q = await c.tx.get("quotes", c.s.active_quote_id);
+    if (q) await c.tx.update("quotes", q.id, { valid: false });
+    c.s.active_quote_id = null;
+    await c.tx.update("interactions", c.s.id, { active_quote_id: null });
+  }
 }
 async function audit(c: Context, kind: string, details: object = {}) {
-  await c.tx.query(
-    "INSERT INTO audit(session_id,kind,details) VALUES($1,$2,$3)",
-    [c.s.id, kind, JSON.stringify(details)],
-  );
+  c.tx.put("audit", {
+    id: randomUUID(),
+    session_id: c.s.id,
+    kind,
+    details,
+    created_at: new Date().toISOString(),
+  });
 }
 async function saveCart(c: Context) {
   await invalidate(c);
-  await c.tx.query(
-    "UPDATE carts SET version=$2,lines=$3,issues=$4 WHERE session_id=$1",
-    [
-      c.s.id,
-      c.cart.version,
-      JSON.stringify(c.cart.lines),
-      JSON.stringify(c.cart.issues),
-    ],
-  );
+  c.tx.put("carts", { session_id: c.s.id, ...c.cart });
 }
 function editable(c: Context) {
   if (c.scope.actor === "staff")
@@ -131,8 +122,7 @@ function editable(c: Context) {
 }
 async function noOrder(c: Context) {
   assert(
-    !(await c.tx.query("SELECT 1 FROM orders WHERE session_id=$1", [c.s.id]))
-      .rowCount,
+    !(await c.tx.get("orders", c.s.id)),
     "ORDER_LOCKED",
     "This order has been submitted. Ask staff for changes; the kitchen ticket was not changed.",
   );
@@ -146,25 +136,27 @@ function version(c: Context, expected: number) {
 }
 async function view(c: Context, summary = ""): Promise<View> {
   const priced = priceCart(c.cart, c.menu);
-  const q = (
-    await c.tx.query(
-      `SELECT q.*,a.quote_id IS NOT NULL AS approved FROM quotes q LEFT JOIN approvals a ON a.quote_id=q.id WHERE q.session_id=$1 AND q.valid AND q.expires_at>now() ORDER BY q.expires_at DESC LIMIT 1`,
-      [c.s.id],
-    )
-  ).rows[0];
-  const order =
-    (
-      await c.tx.query<Order>(
-        "SELECT id,number,status,snapshot,created_at,updated_at FROM orders WHERE session_id=$1",
-        [c.s.id],
-      )
-    ).rows[0] ?? null;
+  const candidate = c.s.active_quote_id
+    ? await c.tx.get("quotes", c.s.active_quote_id)
+    : null;
+  const q =
+    candidate &&
+    candidate.valid &&
+    candidate.fence === c.s.fence &&
+    candidate.snapshot.cart_version === c.cart.version &&
+    candidate.snapshot.menu_version === c.menu.version &&
+    candidate.snapshot.price_version === c.menu.price_version &&
+    new Date(candidate.expires_at).getTime() > Date.now()
+      ? candidate
+      : null;
+  const approval = q ? await c.tx.get("approvals", q.id) : null;
+  const order = await c.tx.get("orders", c.s.id);
   const quote: Quote | null = q
     ? {
         id: q.id,
         expires_at: new Date(q.expires_at).toISOString(),
         snapshot: q.snapshot,
-        approved: q.approved,
+        approved: Boolean(approval),
       }
     : null;
   return {
@@ -185,7 +177,10 @@ async function view(c: Context, summary = ""): Promise<View> {
     quote,
     order: order
       ? {
-          ...order,
+          id: order.id,
+          number: order.number,
+          status: order.status as Order["status"],
+          snapshot: order.snapshot,
           created_at: new Date(order.created_at).toISOString(),
           updated_at: new Date(order.updated_at).toISOString(),
         }
@@ -200,35 +195,42 @@ export async function getView(scope: Scope) {
 export async function beginInteraction(laneId: string) {
   return transaction(async (tx) => {
     await loadMenu(tx);
-    const lane = (
-      await tx.query(
-        "SELECT * FROM lanes WHERE id=$1 AND restaurant_id=$2 FOR UPDATE",
-        [laneId, RESTAURANT],
-      )
-    ).rows[0];
+    const lane = await tx.get("lanes", laneId);
     assert(lane, "LANE", "Unknown lane.", 404);
     if (lane.current_session) {
-      await tx.query(
-        "UPDATE interactions SET status='ended',fence=fence+1,staff_message=NULL WHERE id=$1",
-        [lane.current_session],
-      );
-      await tx.query("UPDATE quotes SET valid=false WHERE session_id=$1", [
-        lane.current_session,
-      ]);
+      const prior = await tx.get("interactions", lane.current_session);
+      if (prior) {
+        if (prior.active_quote_id)
+          await tx.update("quotes", prior.active_quote_id, { valid: false });
+        await tx.update("interactions", prior.id, {
+          status: "ended",
+          fence: prior.fence + 1,
+          staff_message: null,
+          active_quote_id: null,
+        });
+      }
     }
     const session = randomUUID(),
       token = randomBytes(32).toString("base64url"),
       epoch = lane.epoch + 1;
-    await tx.query(
-      "INSERT INTO interactions(id,lane_id,restaurant_id,epoch,token_hash,expires_at) VALUES($1,$2,$3,$4,$5,now()+interval '15 minutes')",
-      [session, laneId, RESTAURANT, epoch, hash(token)],
-    );
-    await tx.query("INSERT INTO carts(session_id) VALUES($1)", [session]);
-    await tx.query("UPDATE lanes SET current_session=$2,epoch=$3 WHERE id=$1", [
-      laneId,
-      session,
+    tx.put("interactions", {
+      id: session,
+      lane_id: laneId,
+      restaurant_id: RESTAURANT,
       epoch,
-    ]);
+      fence: 0,
+      owner: "ai",
+      status: "active",
+      token_hash: hash(token),
+      active_quote_id: null,
+      needs_staff_review: false,
+      staff_message: null,
+      voice_until: null,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 15 * 60000).toISOString(),
+    });
+    tx.put("carts", { session_id: session, version: 0, lines: [], issues: [] });
+    await tx.update("lanes", laneId, { current_session: session, epoch });
     return {
       token,
       scope: {
@@ -243,12 +245,17 @@ export async function beginInteraction(laneId: string) {
   });
 }
 export async function scopeForToken(token: string): Promise<Scope> {
-  const s = (
-    await pool.query<Session>(
-      `SELECT i.* FROM interactions i JOIN lanes l ON l.current_session=i.id WHERE i.token_hash=$1 AND i.status='active' AND i.expires_at>now()`,
-      [hash(token)],
-    )
-  ).rows[0];
+  const s = await transaction(async (tx) => {
+    const lane = await tx.get("lanes", "lane-1");
+    const row = lane?.current_session
+      ? await tx.get("interactions", lane.current_session)
+      : null;
+    return row?.token_hash === hash(token) &&
+      row.status === "active" &&
+      new Date(row.expires_at).getTime() > Date.now()
+      ? row
+      : null;
+  });
   assert(s, "UNAUTHORIZED", "Begin a customer interaction first.", 401);
   return {
     restaurant_id: s.restaurant_id,
@@ -260,12 +267,16 @@ export async function scopeForToken(token: string): Promise<Scope> {
   };
 }
 export async function activeScope(): Promise<Scope | null> {
-  const s = (
-    await pool.query<Session>(
-      `SELECT i.* FROM lanes l JOIN interactions i ON i.id=l.current_session WHERE l.restaurant_id=$1 AND i.status='active' AND i.expires_at>now()`,
-      [RESTAURANT],
-    )
-  ).rows[0];
+  const s = await transaction(async (tx) => {
+    const lane = await tx.get("lanes", "lane-1");
+    const row = lane?.current_session
+      ? await tx.get("interactions", lane.current_session)
+      : null;
+    return row?.status === "active" &&
+      new Date(row.expires_at).getTime() > Date.now()
+      ? row
+      : null;
+  });
   return s
     ? {
         restaurant_id: RESTAURANT,
@@ -280,10 +291,11 @@ export async function activeScope(): Promise<Scope | null> {
 export async function endInteraction(scope: Scope) {
   return withScope(scope, async (c) => {
     await invalidate(c);
-    await c.tx.query(
-      "UPDATE interactions SET status='ended',fence=fence+1,staff_message=NULL WHERE id=$1",
-      [c.s.id],
-    );
+    await c.tx.update("interactions", c.s.id, {
+      status: "ended",
+      fence: c.s.fence + 1,
+      staff_message: null,
+    });
     await audit(c, "vehicle_departed");
   });
 }
@@ -318,14 +330,14 @@ function voiceIdle(c: Context) {
   );
 }
 async function validQuote(c: Context, id: string) {
-  const q = (
-    await c.tx.query(
-      "SELECT * FROM quotes WHERE id=$1 AND session_id=$2 AND valid AND expires_at>now() FOR UPDATE",
-      [id, c.s.id],
-    )
-  ).rows[0];
+  const q = await c.tx.get("quotes", id);
   assert(
-    q && q.fence === c.s.fence,
+    q &&
+      q.session_id === c.s.id &&
+      q.valid &&
+      c.s.active_quote_id === q.id &&
+      new Date(q.expires_at).getTime() > Date.now() &&
+      q.fence === c.s.fence,
     "STALE_QUOTE",
     "Review this order again; the quote expired or changed.",
   );
@@ -344,11 +356,7 @@ export async function approve(scope: Scope, quoteId: string) {
     403,
   );
   return withScope(scope, async (c) => {
-    const existing = (
-      await c.tx.query("SELECT quote_id FROM orders WHERE session_id=$1", [
-        c.s.id,
-      ])
-    ).rows[0];
+    const existing = await c.tx.get("orders", c.s.id);
     if (existing) {
       assert(
         existing.quote_id === quoteId,
@@ -361,10 +369,13 @@ export async function approve(scope: Scope, quoteId: string) {
     voiceIdle(c);
     await noOrder(c);
     await validQuote(c, quoteId);
-    await c.tx.query(
-      "INSERT INTO approvals(quote_id,session_id) VALUES($1,$2) ON CONFLICT DO NOTHING",
-      [quoteId, c.s.id],
-    );
+    if (!(await c.tx.get("approvals", quoteId)))
+      c.tx.put("approvals", {
+        quote_id: quoteId,
+        session_id: c.s.id,
+        created_at: new Date().toISOString(),
+        consumed_at: null,
+      });
     await audit(c, "customer_approved");
     return view(c, "You approved the displayed quote.");
   });
@@ -392,14 +403,18 @@ export async function tool(
       return { ...(await view(c)) };
     if (name === "request_staff_help") {
       const a = toolSchemas.request_staff_help.parse(args);
-      await c.tx.query(
-        "INSERT INTO handoffs(id,session_id,reason,concern) VALUES($1,$2,$3,$4)",
-        [randomUUID(), c.s.id, a.reason, a.concern ?? null],
-      );
-      await c.tx.query(
-        "UPDATE interactions SET needs_staff_review=true,fence=fence+1 WHERE id=$1",
-        [c.s.id],
-      );
+      c.tx.put("handoffs", {
+        id: randomUUID(),
+        session_id: c.s.id,
+        reason: a.reason,
+        concern: a.concern ?? null,
+        resolved: false,
+        created_at: new Date().toISOString(),
+      });
+      await c.tx.update("interactions", c.s.id, {
+        needs_staff_review: true,
+        fence: c.s.fence + 1,
+      });
       c.s.needs_staff_review = true;
       c.s.fence++;
       await invalidate(c);
@@ -415,11 +430,7 @@ export async function tool(
     }
     if (name === "submit_order") {
       const a = toolSchemas.submit_order.parse(args);
-      const existing = (
-        await c.tx.query("SELECT quote_id FROM orders WHERE session_id=$1", [
-          c.s.id,
-        ])
-      ).rows[0];
+      const existing = await c.tx.get("orders", c.s.id);
       if (existing) {
         assert(
           existing.quote_id === a.quote_id,
@@ -436,33 +447,43 @@ export async function tool(
       editable(c);
       voiceIdle(c);
       const q = await validQuote(c, a.quote_id);
-      const approval = await c.tx.query(
-        "UPDATE approvals SET consumed_at=now() WHERE quote_id=$1 AND session_id=$2 AND consumed_at IS NULL RETURNING quote_id",
-        [q.id, c.s.id],
-      );
+      const approval = await c.tx.get("approvals", q.id);
       assert(
-        approval.rowCount,
+        approval && approval.session_id === c.s.id && !approval.consumed_at,
         "CONSENT_REQUIRED",
         "Use the customer Confirm order button for this exact quote.",
         403,
       );
       const orderId = randomUUID();
-      await c.tx.query(
-        "INSERT INTO orders(id,session_id,restaurant_id,quote_id,external_key,payload_hash,snapshot) VALUES($1,$2,$3,$4,$5,$6,$7)",
-        [
-          orderId,
-          c.s.id,
-          RESTAURANT,
-          q.id,
-          `saygo:${c.s.id}:submit`,
-          q.payload_hash,
-          JSON.stringify(q.snapshot),
-        ],
-      );
-      await c.tx.query("INSERT INTO jobs(id,order_id) VALUES($1,$2)", [
-        randomUUID(),
-        orderId,
-      ]);
+      await c.tx.update("approvals", q.id, {
+        consumed_at: new Date().toISOString(),
+      });
+      const restaurant = (await c.tx.get("restaurants", RESTAURANT))!;
+      const number = restaurant.order_number + 1;
+      await c.tx.update("restaurants", RESTAURANT, { order_number: number });
+      const now = new Date().toISOString();
+      c.tx.put("orders", {
+        id: orderId,
+        number,
+        session_id: c.s.id,
+        restaurant_id: RESTAURANT,
+        quote_id: q.id,
+        external_key: `saygo:${c.s.id}:submit`,
+        payload_hash: q.payload_hash,
+        snapshot: q.snapshot,
+        status: "submitted",
+        created_at: now,
+        updated_at: now,
+      });
+      c.tx.put("jobs", {
+        id: randomUUID(),
+        order_id: orderId,
+        state: "pending",
+        attempts: 0,
+        available_at: now,
+        lease_until: null,
+        lease_token: null,
+      });
       await invalidate(c);
       await audit(c, "order_submitted");
       return {
@@ -478,11 +499,7 @@ export async function tool(
       const a = toolSchemas.apply_cart_changes.parse(args);
       const key = `${c.s.id}:${scope.actor}:cart:${a.request_id}`,
         payloadHash = hash(a);
-      const duplicate = (
-        await c.tx.query("SELECT payload_hash FROM idempotency WHERE key=$1", [
-          key,
-        ])
-      ).rows[0];
+      const duplicate = await c.tx.get("idempotency", key);
       if (duplicate) {
         assert(
           duplicate.payload_hash === payloadHash,
@@ -496,10 +513,11 @@ export async function tool(
       version(c, a.expected_version);
       c.cart = applyCommands(c.cart, c.menu, a.commands, a.clarification);
       await saveCart(c);
-      await c.tx.query(
-        "INSERT INTO idempotency(key,payload_hash) VALUES($1,$2)",
-        [key, payloadHash],
-      );
+      c.tx.put("idempotency", {
+        key,
+        payload_hash: payloadHash,
+        created_at: new Date().toISOString(),
+      });
       await audit(c, "cart_changed", {
         version: c.cart.version,
         commands: a.commands.length,
@@ -516,12 +534,11 @@ export async function tool(
     if (name === "prepare_order_review") {
       const a = toolSchemas.prepare_order_review.parse(args);
       const requestHash = hash(a);
-      const previous = (
-        await c.tx.query(
-          "SELECT id,request_hash FROM quotes WHERE session_id=$1 AND request_actor=$2 AND request_id=$3",
-          [c.s.id, scope.actor, a.request_id],
-        )
-      ).rows[0];
+      const key = `${c.s.id}:${scope.actor}:review:${a.request_id}`;
+      const identity = await c.tx.get("idempotency", key);
+      const previous = identity?.quote_id
+        ? await c.tx.get("quotes", identity.quote_id)
+        : null;
       if (previous) {
         assert(
           previous.request_hash === requestHash,
@@ -542,19 +559,26 @@ export async function tool(
       const snap = snapshot(c);
       await invalidate(c);
       const id = randomUUID();
-      await c.tx.query(
-        "INSERT INTO quotes(id,session_id,snapshot,payload_hash,fence,expires_at,request_id,request_actor,request_hash) VALUES($1,$2,$3,$4,$5,now()+interval '2 minutes',$6,$7,$8)",
-        [
-          id,
-          c.s.id,
-          JSON.stringify(snap),
-          hash(snap),
-          c.s.fence,
-          a.request_id,
-          scope.actor,
-          requestHash,
-        ],
-      );
+      c.tx.put("quotes", {
+        id,
+        session_id: c.s.id,
+        snapshot: snap,
+        payload_hash: hash(snap),
+        fence: c.s.fence,
+        valid: true,
+        expires_at: new Date(Date.now() + 2 * 60000).toISOString(),
+        request_id: a.request_id,
+        request_actor: scope.actor,
+        request_hash: requestHash,
+      });
+      c.tx.put("idempotency", {
+        key,
+        payload_hash: requestHash,
+        quote_id: id,
+        created_at: new Date().toISOString(),
+      });
+      c.s.active_quote_id = id;
+      await c.tx.update("interactions", c.s.id, { active_quote_id: id });
       return {
         ...(await view(
           c,
@@ -617,10 +641,11 @@ export async function staffAction(
     }
     if (action === "resolve") {
       assert(c.s.owner === "staff", "TAKEOVER", "Take control first.");
-      await c.tx.query(
-        "UPDATE handoffs SET resolved=true WHERE session_id=$1",
-        [c.s.id],
-      );
+      for (const row of await c.tx.list(
+        "handoffs",
+        (h) => h.session_id === c.s.id && !h.resolved,
+      ))
+        await c.tx.update("handoffs", row.id, { resolved: true });
       c.s.needs_staff_review = false;
       await invalidate(c);
     }
@@ -628,10 +653,12 @@ export async function staffAction(
       assert(c.s.owner === "staff", "TAKEOVER", "Take control first.");
       c.s.staff_message = (message ?? "").slice(0, 300);
     }
-    await c.tx.query(
-      "UPDATE interactions SET owner=$2,fence=$3,needs_staff_review=$4,staff_message=$5 WHERE id=$1",
-      [c.s.id, c.s.owner, c.s.fence, c.s.needs_staff_review, c.s.staff_message],
-    );
+    await c.tx.update("interactions", c.s.id, {
+      owner: c.s.owner,
+      fence: c.s.fence,
+      needs_staff_review: c.s.needs_staff_review,
+      staff_message: c.s.staff_message,
+    });
     await audit(c, `staff_${action}`);
     return view(c);
   });
@@ -687,18 +714,14 @@ export async function updateProduct(
             400,
           );
       }
-    await tx.query(
-      "UPDATE products SET data=$2 WHERE id=$1 AND restaurant_id=$3",
-      [id, JSON.stringify(next), RESTAURANT],
-    );
-    await tx.query(
-      "UPDATE restaurants SET menu_version=menu_version+1,price_version=price_version+$2 WHERE id=$1",
-      [RESTAURANT, patch.variants || patch.groups ? 1 : 0],
-    );
-    await tx.query(
-      "UPDATE quotes SET valid=false WHERE session_id IN(SELECT id FROM interactions WHERE restaurant_id=$1)",
-      [RESTAURANT],
-    );
+    await tx.update("products", id, { data: next });
+    await tx.update("restaurants", RESTAURANT, {
+      menu_version: menu.version + 1,
+      price_version:
+        menu.price_version + (patch.variants || patch.groups ? 1 : 0),
+    });
+    // Every quote carries these versions. Validation and projection invalidate
+    // old reviews atomically, without an unbounded fan-out write.
     return next;
   });
 }
@@ -709,9 +732,67 @@ export async function kitchenTransition(orderId: string, next: string) {
     handed_off: "ready",
   };
   assert(from[next], "TRANSITION", "Unsupported kitchen state.", 400);
-  const r = await pool.query(
-    "UPDATE orders SET status=$2,updated_at=now() WHERE id=$1 AND restaurant_id=$3 AND status=$4 RETURNING id",
-    [orderId, next, RESTAURANT, from[next]],
+  await transaction(async (tx) => {
+    const order = (
+      await tx.list(
+        "orders",
+        (o) => o.id === orderId && o.restaurant_id === RESTAURANT,
+      )
+    )[0];
+    assert(
+      order?.status === from[next],
+      "TRANSITION",
+      "Order state changed. Refresh the kitchen.",
+    );
+    await tx.update("orders", order.session_id, {
+      status: next,
+      updated_at: new Date().toISOString(),
+    });
+  });
+}
+
+export async function resetDemo() {
+  await maintenance(
+    async (run) => {
+      await clearEntities(
+        [
+          "pos_attempts",
+          "jobs",
+          "pos_receipts",
+          "orders",
+          "approvals",
+          "quotes",
+          "handoffs",
+          "carts",
+          "audit",
+          "idempotency",
+          "interactions",
+        ],
+        run,
+      );
+      await run(async (tx) => {
+        for (const lane of await tx.list("lanes"))
+          await tx.update("lanes", lane.id, {
+            current_session: null,
+            epoch: lane.epoch + 1,
+          });
+      });
+    },
+    false,
+    async (tx) => {
+      assert(
+        !(await tx.list("jobs")).some((j) => j.state === "leased"),
+        "WORKER_BUSY",
+        "Wait for the current sandbox attempt to finish before resetting.",
+      );
+    },
   );
-  assert(r.rowCount, "TRANSITION", "Order state changed. Refresh the kitchen.");
+}
+
+export async function voiceLease(sessionId: string, until: string | null) {
+  await transaction(async (tx) => {
+    const session = await tx.get("interactions", sessionId);
+    if (session)
+      await tx.update("interactions", sessionId, { voice_until: until });
+  });
 }

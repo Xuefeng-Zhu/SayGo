@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
-import { config, pool } from "@saygo/db";
-import { scopeForToken, getView } from "@saygo/domain";
+import { config } from "@saygo/db";
+import { scopeForToken, getView, voiceLease } from "@saygo/domain";
 import { openMcp } from "@saygo/integrations";
 import { NovaSession } from "../../../packages/integrations/src/nova.js";
 import { agentToken, cookie } from "./auth.js";
@@ -63,10 +63,7 @@ export function attachVoice(server: Server) {
             stopping = (async () => {
               await nova?.drain();
               await mcp?.close();
-              await pool.query(
-                "UPDATE interactions SET voice_until=NULL WHERE id=$1",
-                [scope.session_id],
-              );
+              await voiceLease(scope.session_id, null);
               active.delete(scope.session_id);
             })();
             return stopping;
@@ -76,9 +73,9 @@ export function attachVoice(server: Server) {
               .then(() =>
                 ended
                   ? undefined
-                  : pool.query(
-                      "UPDATE interactions SET voice_until=now()+interval '20 seconds' WHERE id=$1",
-                      [scope.session_id],
+                  : voiceLease(
+                      scope.session_id,
+                      new Date(Date.now() + 20000).toISOString(),
                     ),
               )
               .catch(() => void stop());
@@ -115,9 +112,9 @@ export function attachVoice(server: Server) {
           ws.on("close", stop);
           ws.on("error", stop);
           void (async () => {
-            await pool.query(
-              "UPDATE interactions SET voice_until=now()+interval '20 seconds' WHERE id=$1",
-              [scope.session_id],
+            await voiceLease(
+              scope.session_id,
+              new Date(Date.now() + 20000).toISOString(),
             );
             mcp = await openMcp(agentToken(scope));
             if (ended) {

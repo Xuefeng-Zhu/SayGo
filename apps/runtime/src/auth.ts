@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual, scryptSync } from "node:crypto";
 import type { Request, Response } from "express";
 import type { Scope } from "@saygo/contracts";
-import { config, pool, RESTAURANT } from "@saygo/db";
+import { config, store, RESTAURANT } from "@saygo/db";
 import { assert, scopeForToken } from "@saygo/domain";
 import { z } from "zod";
 export const cookie = (req: { headers: { cookie?: string } }, name: string) =>
@@ -103,32 +103,31 @@ export async function staff(
     "Staff authentication required.",
     401,
   );
-  const user = (
-    await pool.query(
-      "SELECT id,role,restaurant_id FROM staff_users WHERE id=$1 AND enabled AND restaurant_id=$2",
-      [data.id, RESTAURANT],
-    )
-  ).rows[0];
+  const user = await store.get("staff_users", data.id);
   assert(
-    user && roles.includes(user.role),
+    user &&
+      user.enabled &&
+      user.restaurant_id === RESTAURANT &&
+      roles.includes(user.role),
     "ROLE",
     "This staff role cannot perform that operation.",
     403,
   );
-  return user as { id: string; role: string; restaurant_id: string };
+  return { id: user.id, role: user.role, restaurant_id: user.restaurant_id };
 }
 export async function login(username: string, password: string) {
-  const user = (
-    await pool.query(
-      "SELECT * FROM staff_users WHERE id=$1 AND enabled AND restaurant_id=$2",
-      [username, RESTAURANT],
-    )
-  ).rows[0];
+  const candidate = await store.get("staff_users", username);
+  const user =
+    candidate?.enabled && candidate.restaurant_id === RESTAURANT
+      ? candidate
+      : null;
   const [salt, digest] = (user?.password_hash ?? "invalid:00").split(":");
   const check = scryptSync(password, salt, 64);
   const expected = Buffer.from(digest, "hex");
   assert(
-    expected.length === check.length && timingSafeEqual(check, expected),
+    user &&
+      expected.length === check.length &&
+      timingSafeEqual(check, expected),
     "LOGIN",
     "Incorrect username or password.",
     401,

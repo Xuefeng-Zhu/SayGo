@@ -1,39 +1,46 @@
 import { scryptSync, randomBytes } from "node:crypto";
-import { db, pool, schema, config, RESTAURANT } from "./index.js";
+import { transaction, store, config, RESTAURANT } from "./index.js";
 import { seedProducts } from "./menu.js";
 if (config.SAYGO_DEMO !== "true")
   throw new Error("Fictional seed requires SAYGO_DEMO=true");
 try {
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(schema.restaurants)
-      .values({
+  await transaction(async (tx) => {
+    if (!(await tx.get("restaurants", RESTAURANT)))
+      tx.put("restaurants", {
         id: RESTAURANT,
         name: "Harbor Burger",
         timezone: "America/Los_Angeles",
         instructions:
           "Please pull forward to the next window. Payment is due there.",
-      })
-      .onConflictDoNothing();
-    await tx
-      .insert(schema.lanes)
-      .values({ id: "lane-1", restaurantId: RESTAURANT })
-      .onConflictDoNothing();
+        menu_version: 1,
+        price_version: 1,
+        upsell_enabled: false,
+        pos_mode: "accept",
+        order_number: 0,
+      });
+    if (!(await tx.get("lanes", "lane-1")))
+      tx.put("lanes", {
+        id: "lane-1",
+        restaurant_id: RESTAURANT,
+        epoch: 0,
+        current_session: null,
+      });
     for (const data of seedProducts)
-      await tx
-        .insert(schema.products)
-        .values({ id: data.id, restaurantId: RESTAURANT, data })
-        .onConflictDoNothing();
-    for (const role of ["admin", "crew", "kitchen"]) {
-      const salt = randomBytes(16).toString("hex");
-      const passwordHash = `${salt}:${scryptSync(config.SAYGO_STAFF_PASSWORD, salt, 64).toString("hex")}`;
-      await tx
-        .insert(schema.staffUsers)
-        .values({ id: role, restaurantId: RESTAURANT, role, passwordHash })
-        .onConflictDoNothing();
-    }
+      if (!(await tx.get("products", data.id)))
+        tx.put("products", { id: data.id, restaurant_id: RESTAURANT, data });
+    for (const role of ["admin", "crew", "kitchen"])
+      if (!(await tx.get("staff_users", role))) {
+        const salt = randomBytes(16).toString("hex");
+        tx.put("staff_users", {
+          id: role,
+          restaurant_id: RESTAURANT,
+          role,
+          enabled: true,
+          password_hash: `${salt}:${scryptSync(config.SAYGO_STAFF_PASSWORD, salt, 64).toString("hex")}`,
+        });
+      }
   });
-  console.log("Harbor Burger demo seed ready (existing data preserved).");
+  console.log("Harbor Burger DynamoDB seed ready (existing data preserved).");
 } finally {
-  await pool.end();
+  await store.close();
 }

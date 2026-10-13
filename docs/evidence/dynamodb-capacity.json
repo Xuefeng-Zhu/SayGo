@@ -1,0 +1,20 @@
+{
+  "verifiedDatePacific": "2026-10-13",
+  "region": "us-west-2",
+  "table": "SayGo",
+  "status": "ACTIVE",
+  "tableClass": "STANDARD",
+  "readCapacityUnits": 25,
+  "writeCapacityUnits": 25,
+  "globalSecondaryIndexes": 0,
+  "deletionProtection": true,
+  "otherRegionalTables": {
+    "count": 2,
+    "billingMode": "PAY_PER_REQUEST",
+    "provisionedReadUnits": 0,
+    "provisionedWriteUnits": 0
+  },
+  "awsOrganizations": "standalone account; no organization present",
+  "invoiceVerified": false,
+  "scope": "AWS table metadata and regional capacity checked; fixed capacity fits the published provisioned free-tier allowance. Other service charges and any future configuration changes are separate."
+}

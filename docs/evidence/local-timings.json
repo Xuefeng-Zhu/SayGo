@@ -1,8 +1,8 @@
 {
-  "measured_at": "2026-10-11T03:46:00.706Z",
+  "measured_at": "2026-10-13T08:45:34.473Z",
   "mode": "local no-key fixture over real MCP",
-  "browser_click_to_authoritative_cart_ms": 225,
-  "apply_cart_changes_mcp_round_trip_ms": 22,
-  "browser_confirmation_to_accepted_board_ms": 1848,
+  "browser_click_to_authoritative_cart_ms": 855,
+  "apply_cart_changes_mcp_round_trip_ms": 26,
+  "browser_confirmation_to_accepted_board_ms": 347,
   "notes": "Single local run includes browser/assertion overhead and polling. Not provider latency, SLA, or benchmark."
 }

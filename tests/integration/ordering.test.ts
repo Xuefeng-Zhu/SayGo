@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { createServer, request as httpRequest } from "node:http";
 import { randomUUID } from "node:crypto";
-import { pool, config } from "@saygo/db";
+import { store, config, transaction, RESTAURANT } from "@saygo/db";
 import {
   beginInteraction,
   scopeForToken,
@@ -17,6 +17,7 @@ import {
   approve,
   getView,
   staffAction,
+  resetDemo,
   updateProduct,
   kitchenTransition,
 } from "@saygo/domain";
@@ -66,7 +67,8 @@ async function submit() {
   return v(await tool(scope, "submit_order", { quote_id: q.id }));
 }
 beforeAll(async () => {
-  expect(new URL(config.DATABASE_URL).pathname).toBe("/saygo_test");
+  expect(config.DYNAMODB_NAMESPACE).toBe("saygo_test");
+  expect(config.DYNAMODB_ENDPOINT).toBeTruthy();
   await new Promise<void>((r) =>
     server.listen(config.SAYGO_RUNTIME_PORT, "127.0.0.1", r),
   );
@@ -75,27 +77,92 @@ afterAll(async () => {
   await new Promise<void>((r, e) =>
     server.close((err) => (err ? e(err) : r())),
   );
-  await pool.end();
+  await store.close();
 });
 beforeEach(async () => {
-  // Isolated test database only, never the demo database.
-  await pool.query(
-    "TRUNCATE audit,idempotency,pos_attempts,jobs,pos_receipts,orders,approvals,quotes,handoffs,carts,interactions CASCADE",
-  );
-  await pool.query("UPDATE lanes SET current_session=NULL");
-  for (const p of seedProducts)
-    await pool.query("UPDATE products SET data=$2 WHERE id=$1", [
-      p.id,
-      JSON.stringify(p),
-    ]);
-  await pool.query(
-    "UPDATE restaurants SET pos_mode='accept',menu_version=1,price_version=1",
-  );
+  await resetDemo();
+  await transaction(async (tx) => {
+    for (const data of seedProducts)
+      await tx.update("products", data.id, { data });
+    await tx.update("restaurants", RESTAURANT, {
+      pos_mode: "accept",
+      menu_version: 1,
+      price_version: 1,
+    });
+  });
   const started = await beginInteraction("lane-1");
   scope = { ...started.scope, actor: "agent" };
   token = started.token;
 });
-describe("PostgreSQL, real MCP and durable ordering", () => {
+describe("DynamoDB, real MCP and durable ordering", () => {
+  it("rolls back an interrupted multi-entity transaction", async () => {
+    const before = await store.get("restaurants", RESTAURANT);
+    await expect(
+      transaction(async (tx) => {
+        await tx.update("restaurants", RESTAURANT, { pos_mode: "reject" });
+        tx.put("audit", {
+          id: "rollback-test",
+          session_id: scope.session_id,
+          kind: "must-not-commit",
+          details: {},
+          created_at: new Date().toISOString(),
+        });
+        throw new Error("Interrupted before commit");
+      }),
+    ).rejects.toThrow("Interrupted");
+    expect(await store.get("restaurants", RESTAURANT)).toEqual(before);
+    expect(await store.get("audit", "rollback-test")).toBeNull();
+  });
+  it("serializes independent concurrent writes without losing updates", async () => {
+    const start = (await store.get("restaurants", RESTAURANT))!.order_number;
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        transaction(async (tx) => {
+          const row = (await tx.get("restaurants", RESTAURANT))!;
+          await tx.update("restaurants", RESTAURANT, {
+            order_number: row.order_number + 1,
+          });
+        }),
+      ),
+    );
+    expect((await store.get("restaurants", RESTAURANT))!.order_number).toBe(
+      start + 8,
+    );
+  });
+  it("resets more than 100 records with bounded batches and preserves menu and staff", async () => {
+    const products = await store.list("products"),
+      users = await store.list("staff_users");
+    for (let batch = 0; batch < 2; batch++)
+      await transaction(async (tx) => {
+        for (let i = 0; i < 80; i++)
+          tx.put("audit", {
+            id: `bulk-${batch}-${i}`,
+            session_id: scope.session_id,
+            kind: "bulk-reset",
+            details: {},
+            created_at: new Date().toISOString(),
+          });
+      });
+    await resetDemo();
+    expect(await store.list("audit")).toEqual([]);
+    expect(await store.list("interactions")).toEqual([]);
+    expect(await store.list("products")).toEqual(products);
+    expect(await store.list("staff_users")).toEqual(users);
+    await expect(scopeForToken(token)).rejects.toThrow();
+  });
+  it("rejects reset during a live worker lease without leaving a maintenance fence", async () => {
+    await add();
+    await submit();
+    const job = (await store.list("jobs"))[0];
+    await store.update("jobs", job.id, {
+      state: "leased",
+      lease_token: randomUUID(),
+      lease_until: new Date(Date.now() + 30000).toISOString(),
+    });
+    await expect(resetDemo()).rejects.toThrow("Wait for");
+    expect((await getView(scope)).order).not.toBeNull();
+    await store.update("jobs", job.id, { state: "pending", lease_until: null });
+  });
   it.each(mcpEvaluations)(
     "verifies read-only guide evaluation: $id",
     async (item) => {
@@ -434,9 +501,7 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
           approved: true,
         },
       });
-      expect(
-        (await pool.query("SELECT count(*)::int AS n FROM quotes")).rows[0].n,
-      ).toBe(1);
+      expect((await store.list("quotes")).length).toBe(1);
     } finally {
       await m.close();
     }
@@ -483,9 +548,7 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
       expect(await fresh.call("prepare_order_review", args)).toMatchObject({
         quote: { id: original.id, expires_at: original.expires_at },
       });
-      expect(
-        (await pool.query("SELECT count(*)::int AS n FROM quotes")).rows[0].n,
-      ).toBe(1);
+      expect((await store.list("quotes")).length).toBe(1);
     } finally {
       await fresh.close();
     }
@@ -502,10 +565,9 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
       ).rejects.toMatchObject({
         recovery: { code: "IDEMPOTENCY_MISMATCH", retryable: false },
       });
-      await pool.query(
-        "UPDATE quotes SET expires_at=now()-interval '1 second' WHERE id=$1",
-        [original.id],
-      );
+      await store.update("quotes", original.id, {
+        expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
       await expect(m.call("prepare_order_review", args)).rejects.toMatchObject({
         recovery: {
           code: "STALE_QUOTE",
@@ -636,7 +698,10 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
       },
     });
     await entered;
-    await pool.query("UPDATE jobs SET lease_until=now()-interval '1 second'");
+    for (const job of await store.list("jobs"))
+      await store.update("jobs", job.id, {
+        lease_until: new Date(Date.now() - 1000).toISOString(),
+      });
     await runOneJob();
     release({ status: "rejected" });
     await first;
@@ -718,6 +783,11 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
     });
     expect(logged.status).toBe(200);
     const cookie = logged.headers.get("set-cookie")!.split(";")[0];
+    const me = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
+    const identity = await me.json();
+    expect(me.status).toBe(200);
+    expect(Object.keys(identity).sort()).toEqual(["id", "restaurant_id", "role"]);
+    expect(identity.role).toBe("crew");
     const admin = await fetch(`${base}/api/admin`, {
       headers: { Cookie: cookie },
     });
@@ -877,44 +947,45 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
     );
     expect(new Set(results.map((r) => v(r).order!.id)).size).toBe(1);
     await Promise.all([runOneJob(), runOneJob()]);
-    expect(
-      (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n,
-    ).toBe(1);
-    expect(
-      (await pool.query("SELECT count(*)::int AS n FROM pos_receipts")).rows[0]
-        .n,
-    ).toBe(1);
+    expect((await store.list("orders")).length).toBe(1);
+    expect((await store.list("pos_receipts")).length).toBe(1);
     expect((await getView(scope)).order?.status).toBe("accepted");
   });
   it("reconciles timeout after acceptance with same key and no second submit", async () => {
-    await pool.query("UPDATE restaurants SET pos_mode='unknown'");
+    await store.update("restaurants", RESTAURANT, { pos_mode: "unknown" });
     await add();
     await submit();
     await runOneJob();
     expect((await getView(scope)).order?.status).toBe("unknown");
-    await pool.query("UPDATE pos_receipts SET visible_at=now()");
-    await pool.query("UPDATE jobs SET available_at=now()");
+    for (const row of await store.list("pos_receipts"))
+      await store.update("pos_receipts", row.external_key, {
+        visible_at: new Date().toISOString(),
+      });
+    for (const row of await store.list("jobs"))
+      await store.update("jobs", row.id, {
+        available_at: new Date().toISOString(),
+      });
     await runOneJob();
     expect((await getView(scope)).order?.status).toBe("accepted");
-    expect(
-      (await pool.query("SELECT count(*)::int AS n FROM pos_receipts")).rows[0]
-        .n,
-    ).toBe(1);
+    expect((await store.list("pos_receipts")).length).toBe(1);
     expect(
       (
-        await pool.query(
-          "SELECT count(*)::int AS n FROM pos_attempts WHERE operation='lookup' AND outcome='accepted'",
+        await store.list(
+          "pos_attempts",
+          (p) => p.operation === "lookup" && p.outcome === "accepted",
         )
-      ).rows[0].n,
+      ).length,
     ).toBe(1);
   });
   it("reclaims an expired worker lease after a restart", async () => {
     await add();
     await submit();
-    await pool.query(
-      "UPDATE jobs SET state='leased',lease_until=now()-interval '1 second',lease_token=$1",
-      [randomUUID()],
-    );
+    for (const row of await store.list("jobs"))
+      await store.update("jobs", row.id, {
+        state: "leased",
+        lease_until: new Date(Date.now() - 1000).toISOString(),
+        lease_token: randomUUID(),
+      });
     expect(await runOneJob()).toBe(true);
     expect((await getView(scope)).order?.status).toBe("accepted");
   });
@@ -978,11 +1049,7 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
     await expect(getView(scope)).rejects.toThrow("ended");
     expect((await getView(next.scope)).lines).toEqual([]);
     expect(
-      (
-        await pool.query(
-          "SELECT count(*)::int AS n FROM orders WHERE status='accepted'",
-        )
-      ).rows[0].n,
+      (await store.list("orders", (o) => o.status === "accepted")).length,
     ).toBe(1);
   });
   it("denies cross-session, cross-restaurant and unauthenticated MCP", async () => {
@@ -1028,15 +1095,17 @@ describe("PostgreSQL, real MCP and durable ordering", () => {
   it("expired quotes, pending voice and model reset tokens are rejected", async () => {
     await add();
     const q = await review();
-    await pool.query(
-      "UPDATE interactions SET voice_until=now()+interval '20 seconds' WHERE id=$1",
-      [scope.session_id],
-    );
+    await store.update("interactions", scope.session_id, {
+      voice_until: new Date(Date.now() + 20000).toISOString(),
+    });
     await expect(
       approve({ ...scope, actor: "customer" }, q.id),
     ).rejects.toThrow("Stop voice");
-    await pool.query("UPDATE interactions SET voice_until=NULL");
-    await pool.query("UPDATE quotes SET expires_at=now()-interval '1 second'");
+    await store.update("interactions", scope.session_id, { voice_until: null });
+    for (const row of await store.list("quotes"))
+      await store.update("quotes", row.id, {
+        expires_at: new Date(Date.now() - 1000).toISOString(),
+      });
     await expect(
       approve({ ...scope, actor: "customer" }, q.id),
     ).rejects.toThrow("expired");

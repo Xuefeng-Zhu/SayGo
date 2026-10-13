@@ -1,27 +1,64 @@
-import { readFile } from "node:fs/promises";
-import { pool, transaction } from "./index.js";
+import {
+  CreateTableCommand,
+  DescribeTableCommand,
+  waitUntilTableExists,
+} from "@aws-sdk/client-dynamodb";
+import { config, rawClient, store } from "./index.js";
 try {
-  await transaction(async (tx) => {
-    await tx.query("SELECT pg_advisory_xact_lock(7462941)");
-    await tx.query(
-      "CREATE TABLE IF NOT EXISTS saygo_migrations(name text PRIMARY KEY,applied_at timestamptz DEFAULT now())",
+  try {
+    const { Table } = await rawClient.send(
+      new DescribeTableCommand({ TableName: config.DYNAMODB_TABLE }),
     );
-    for (const name of ["0001", "0002", "0003"])
-      if (
-        !(
-          await tx.query("SELECT 1 FROM saygo_migrations WHERE name=$1", [name])
-        ).rowCount
-      ) {
-        await tx.query(
-          await readFile(
-            new URL(`../migrations/${name}.sql`, import.meta.url),
-            "utf8",
-          ),
-        );
-        await tx.query("INSERT INTO saygo_migrations(name) VALUES($1)", [name]);
-      }
-  });
-  console.log("SayGo migrations ready");
+    if (
+      Table?.KeySchema?.find((k) => k.KeyType === "HASH")?.AttributeName !==
+        "pk" ||
+      Table?.KeySchema?.find((k) => k.KeyType === "RANGE")?.AttributeName !==
+        "sk"
+    )
+      throw new Error("Existing table does not have SayGo's pk/sk schema.");
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== "ResourceNotFoundException")
+      throw error;
+    if (
+      !config.DYNAMODB_ENDPOINT &&
+      process.env.SAYGO_CREATE_AWS_TABLE !== "true"
+    )
+      throw new Error(
+        "AWS table creation requires SAYGO_CREATE_AWS_TABLE=true.",
+      );
+    await rawClient.send(
+      new CreateTableCommand({
+        TableName: config.DYNAMODB_TABLE,
+        AttributeDefinitions: [
+          { AttributeName: "pk", AttributeType: "S" },
+          { AttributeName: "sk", AttributeType: "S" },
+        ],
+        KeySchema: [
+          { AttributeName: "pk", KeyType: "HASH" },
+          { AttributeName: "sk", KeyType: "RANGE" },
+        ],
+        BillingMode: "PROVISIONED",
+        ProvisionedThroughput: {
+          ReadCapacityUnits: 25,
+          WriteCapacityUnits: 25,
+        },
+        TableClass: "STANDARD",
+        ...(config.DYNAMODB_ENDPOINT
+          ? {}
+          : {
+              DeletionProtectionEnabled: true,
+              Tags: [{ Key: "Project", Value: "SayGo" }],
+            }),
+      }),
+    );
+    await waitUntilTableExists(
+      { client: rawClient, maxWaitTime: 120 },
+      { TableName: config.DYNAMODB_TABLE },
+    );
+  }
+  console.log(
+    "SayGo DynamoDB table ready (Standard, 25 RCU / 25 WCU when newly created).",
+  );
 } finally {
-  await pool.end();
+  await store.close();
 }

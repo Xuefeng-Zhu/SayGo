@@ -1,6 +1,14 @@
 name: saygo
 services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data -disableTelemetry"
+    user: root
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["saygo_dynamodb:/home/dynamodblocal/data"]
+    working_dir: /home/dynamodblocal
   postgres:
+    profiles: ["legacy-postgres"]
     image: postgres:17.6-alpine
     ports: ["127.0.0.1:55432:5432"]
     environment:
@@ -15,3 +23,4 @@ services:
       retries: 20
 volumes:
   saygo_postgres:
+  saygo_dynamodb:
