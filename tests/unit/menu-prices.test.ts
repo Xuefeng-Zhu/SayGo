@@ -20,9 +20,14 @@ const menu: Menu = {
   instructions: "Fictional",
   upsell_enabled: false,
 };
-const price = (options: unknown[]) => compareMenuPrices(menu, { options });
+const price = (options: unknown[], comparison_kind = "price_gap") =>
+  compareMenuPrices(menu, { options, comparison_kind });
 const meal = (drink: string) => [
-  { product_id: "cheeseburger-meal", choices: { drink: [drink] } },
+  {
+    product_id: "cheeseburger-meal",
+    meal_drink_variant: "medium",
+    choices: { drink: [drink] },
+  },
 ];
 
 describe("read-only menu price comparisons", () => {
@@ -35,7 +40,7 @@ describe("read-only menu price comparisons", () => {
       menu_version: 7,
       price_version: 11,
       baseline_label: "cola",
-      comparisons: [{ label: "lemonade", subtotal_delta_cents: 50 }],
+      comparisons: [{ label: "lemonade", kind: "price_gap", amount_cents: 50 }],
     });
     expect(result.options.map((o) => o.totals.subtotal)).toEqual([1175, 1225]);
     expect(result.comparisons[0]).toMatchObject({
@@ -50,10 +55,13 @@ describe("read-only menu price comparisons", () => {
     expect(result).not.toHaveProperty("approved");
   });
   it("preserves negative savings rather than forcing an absolute value", () => {
-    const result = price([
-      { label: "lemonade", selections: meal("lemonade") },
-      { label: "cola", selections: meal("cola") },
-    ]).comparisons[0];
+    const result = price(
+      [
+        { label: "lemonade", selections: meal("lemonade") },
+        { label: "cola", selections: meal("cola") },
+      ],
+      "signed_change",
+    ).comparisons[0];
     expect(result.subtotal_delta_cents).toBe(-50);
     expect(result).toMatchObject({
       absolute_subtotal_difference_cents: 50,
@@ -67,9 +75,67 @@ describe("read-only menu price comparisons", () => {
         { label: "b", selections: [{ product_id: "cola", variant: "large" }] },
       ]).comparisons[0],
     ).toMatchObject({
-      subtotal_delta_cents: 0,
+      amount_cents: 0,
       absolute_subtotal_difference_cents: 0,
       more_expensive_label: null,
+    });
+  });
+  it("cannot expose a negative signed delta in an unsigned premium response", () => {
+    const result = price([
+      { label: "high", selections: meal("lemonade") },
+      { label: "low", selections: meal("cola") },
+    ]);
+    expect(result.comparisons[0]).toMatchObject({
+      kind: "price_gap",
+      amount_cents: 50,
+    });
+    expect(result.comparisons[0]).not.toHaveProperty("subtotal_delta_cents");
+    const bad = structuredClone(result);
+    bad.comparisons[0].amount_cents = -50;
+    expect(toolDataSchemas.compare_menu_prices.safeParse(bad).success).toBe(
+      false,
+    );
+  });
+  it("requires explicit listed-meal drink size and rejects a silent medium substitution", () => {
+    expect(() =>
+      price([
+        {
+          label: "large",
+          selections: [
+            { product_id: "classic-meal", choices: { drink: ["lemonade"] } },
+          ],
+        },
+      ]),
+    ).toThrow("Declare meal_drink_variant");
+    expect(() =>
+      price([
+        {
+          label: "large",
+          selections: [
+            {
+              product_id: "classic-meal",
+              meal_drink_variant: "large",
+              choices: { drink: ["lemonade"] },
+            },
+          ],
+        },
+      ]),
+    ).toThrow("Select standalone classic");
+    const result = price([
+      {
+        label: "converted",
+        selections: [
+          {
+            product_id: "classic",
+            meal: { drink: "lemonade", drink_variant: "large" },
+          },
+        ],
+      },
+    ]);
+    expect(result.options[0].totals.subtotal).toBe(1200);
+    expect(result.options[0].lines[0]).toMatchObject({
+      product_id: "classic",
+      meal: { drink_variant: "large", kind: "conversion" },
     });
   });
   it("uses modifier, quantity and tax arithmetic from the ordering engine", () => {
@@ -178,8 +244,14 @@ describe("read-only menu price comparisons", () => {
 
 describe("menu answer guidance and validation", () => {
   it("states comparison direction and comma-within-field rules without fixture answers", () => {
-    expect(menuPriceGuidance).toContain("changed minus reference");
+    expect(menuPriceGuidance).toContain(
+      "reference first, changed option second",
+    );
     expect(menuAnswerFormatGuidance).toContain("never with |");
+    expect(menuAnswerFormatGuidance).toContain("colon");
+    expect(menuAnswerFormatGuidance).toContain(
+      "copy the text before that colon verbatim",
+    );
     for (const secret of ["1225", "1175", "cola,tea", "lemonade-meal-upgrade"])
       expect(menuPriceGuidance + menuAnswerFormatGuidance).not.toContain(
         secret,

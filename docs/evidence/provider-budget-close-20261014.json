@@ -1,0 +1,11 @@
+{
+  "approvalId": "fixes-voice-20261013",
+  "maximumAdditionalUsd": 1,
+  "priorHistoricalEstimateUsd": 0.78631971,
+  "observedAdditionalUsd": 0.484806577,
+  "heldUnknownOutcomeUsd": 0.25,
+  "accountedAdditionalUsd": 0.734806577,
+  "paidTestingStopped": true,
+  "invoiceVerified": false,
+  "note": "Observed costs use validated provider token usage and the rechecked official catalog. The uncertain early voice attempt remains conservatively reserved. This is not a reset of historical spend or an AWS billing-enforced cap."
+}

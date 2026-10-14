@@ -1,0 +1,145 @@
+{
+  "at": "2026-10-14T07:22:00.605Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "DynamoDB Local",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "implementationHash": "38c6dc6eb22c70ddced882ebbf22049466c031a997e88c9d48f1b7aaf846fba6",
+  "completed": true,
+  "trialCount": 1,
+  "passed": 1,
+  "maximumApprovedUsd": 1,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.42114264699999987,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "reasoning": "medium",
+  "suite": "generalization",
+  "selectedIds": [
+    "fresh-large-meal-conversion"
+  ],
+  "fullSuite": false,
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "menu-v4-large-target-20261014",
+  "priorEstimatedUsd": 1.13046857,
+  "cumulativeEstimatedUsd": 1.15911653,
+  "inputTokens": 13062,
+  "outputTokens": 8850,
+  "modelCalls": 3,
+  "estimatedUsd": 0.028647960000000004,
+  "reservedUpperEstimateUsd": 0.028647960000000007,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-10T18:22:42Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "fresh-large-meal-conversion",
+      "question": "In Harbor Burger v1, convert a standalone regular Classic Burger into a meal with the included medium fries and LARGE lemonade. Compare it with buying that burger, medium fries and large lemonade separately. Ignore tax. Return converted_meal_cents|separate_cents|savings_cents.",
+      "expected": "1200|1300|100",
+      "actual": "1200|1300|100",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 43,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "converted",
+                "selections": [
+                  {
+                    "product_id": "classic",
+                    "variant": "regular",
+                    "meal": {
+                      "drink": "lemonade",
+                      "drink_variant": "large"
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "separate",
+                "selections": [
+                  {
+                    "product_id": "classic",
+                    "variant": "regular"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "medium"
+                  },
+                  {
+                    "product_id": "lemonade",
+                    "variant": "large"
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "price_gap"
+          },
+          "resultHash": "315bac9d2dc250fc9e410ad564f8cab8ece2ad29e845735b1a22de09c7c9a4f6",
+          "ms": 60,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2519,
+          "outputTokens": 1737,
+          "ms": 10736,
+          "stopReason": "tool_use",
+          "requestId": "2bfa11a0-c453-4736-b57e-d2e6847406ed"
+        },
+        {
+          "inputTokens": 4976,
+          "outputTokens": 6757,
+          "ms": 37536,
+          "stopReason": "tool_use",
+          "requestId": "9b3cb729-857c-45da-a48d-a63fa885f7f6"
+        },
+        {
+          "inputTokens": 5567,
+          "outputTokens": 356,
+          "ms": 3078,
+          "stopReason": "end_turn",
+          "requestId": "8c6a9d40-b853-441d-8707-2f14f5a1e999"
+        }
+      ],
+      "elapsedMs": 51629,
+      "agentConfigurationHash": "4c8ae2b35b51fef38a654fe9729a07786ae2b7e0db62cf68f6efa8f138e8f375"
+    }
+  ]
+}

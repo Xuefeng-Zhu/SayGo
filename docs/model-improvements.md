@@ -2,11 +2,15 @@
 
 ## What changed
 
-The MCP-builder workflow led to one additional workflow tool rather than making the model the pricing authority. Contract 0.3 exposes `compare_menu_prices`, backed by the existing `applyCommands` / `priceCart` engine. It computes hypothetical quantities, modifiers, listed meals, standalone meal conversions and fixture tax without writing customer data. Incomplete sizes/choices, unavailable items/components and unsupported conversions fail closed. Authentication, restaurant/lane scope and staff fences still apply.
+The MCP-builder workflow led to one additional workflow tool rather than making the model the pricing authority. Contract 0.4 exposes `compare_menu_prices`, backed by the existing `applyCommands` / `priceCart` engine. It computes hypothetical quantities, modifiers, listed meals, standalone meal conversions and fixture tax without writing customer data. Incomplete sizes/choices, unavailable items/components and unsupported conversions fail closed. Authentication, restaurant/lane scope and staff fences still apply.
 
 Each response separates signed price changes from unsigned price gaps, identifies the more expensive option, returns current menu/price versions, and provides a computed factual comparison summary. A result is not a held quote, consent or an order. Full-entity integration snapshots verify that even an approved customer quote survives comparison unchanged.
 
 Shared pricing guidance is sent to both the Nova voice adapter and the live text evaluator. The evaluator additionally explains comma-separated ID lists, literal prefixes and bare integer money fields. Its syntax check does not repair or normalize answers; exact expected-answer equality remains the acceptance check.
+
+The 0.4 follow-up targets the two earlier 9/10 failures: comparisons default to a nonnegative `amount_cents`, while signed deltas require `signed_change`. Listed meals require an explicit drink size and reject non-medium requests instead of silently substituting medium. Returned configurations are inspectable. The latest complete original run passed the upgrade-sign case but scored 9/10 because a removal answer omitted required literal labels. Template-prefix guidance was clarified. A broader additional-question run stopped when its fifth question exhausted output tokens after four passes; it is not a completed score. Explicitly labeled focused probes preserve the same questions, answers and exact scorer and cannot be aggregated into a full-suite score. Historical failures remain unchanged. [Current receipts and results](evaluation.md).
+
+The owner approved up to $1 additional for text and synthetic Sonic tests. Both runners use the durable owner-only `.local/provider-budgets/<approval-id>.json` ledger through `SAYGO_PROVIDER_APPROVAL_ID`. Existing approvals cannot reset; pending unknown outcomes survive restarts. New reservations stop at 75% of approval, preserving a margin. This scope is additional to, not a reset of, historical $0.786320 usage. New live calls and development failures are accounted for separately; an uncertain early voice attempt retains a $0.25 reservation. Final observed usage is required to settle provider attempts, and known no-provider attempts settle at zero.
 
 ## Evaluation boundaries
 

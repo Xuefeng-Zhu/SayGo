@@ -1,0 +1,64 @@
+{
+  "at": "2026-10-14T06:58:05.727Z",
+  "runId": "sonic-v4-d-20261013",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "region": "us-west-2",
+  "passed": false,
+  "fatal": "Error",
+  "failurePhase": "spoken_correction",
+  "providerRequests": 1,
+  "browserStatus": [
+    "Playback queue exceeded its limit. Voice stopped."
+  ],
+  "assertions": {
+    "softwareCaptureVerified": true,
+    "initialOrder": true
+  },
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 355,
+    "inputText": 3833,
+    "outputSpeech": 176,
+    "outputText": 1125
+  },
+  "estimatedUsd": 0.007382102,
+  "usageFullyObserved": true,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.20018834199999996,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "audioBytes": 303360,
+  "audioHash": "c77a68277d3095db8d7c64b78f4137636f2107ed263fefcf7233f4e3628aa021",
+  "toolNames": [
+    "get_menu",
+    "get_cart",
+    "apply_cart_changes",
+    "prepare_order_review",
+    "get_item_details"
+  ],
+  "transcripts": [
+    {
+      "role": "USER",
+      "text": "add one classic burger and a medium lemonade."
+    },
+    {
+      "role": "USER",
+      "text": "change the lemonade to large. tell me the total before tax."
+    }
+  ],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 0,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-d-20261013/nova-response.wav"
+}

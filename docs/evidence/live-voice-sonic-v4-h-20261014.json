@@ -1,0 +1,110 @@
+{
+  "at": "2026-10-14T07:11:25.104Z",
+  "runId": "sonic-v4-h-20261014",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "implementationHash": "738c0bc1dd4581365228a555e55bb5152579f12a19f18bacd822ffe8731a7e7c",
+  "region": "us-west-2",
+  "passed": false,
+  "fatal": "Error",
+  "failurePhase": "spoken_correction",
+  "providerRequests": 1,
+  "browserStatus": [
+    "Listening · AI-generated speech"
+  ],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "visualDirectory": "/private/tmp/saygo-voice-qa-U6IPSa",
+  "assertions": {
+    "pageIdentity": true,
+    "meaningfulPage": true,
+    "softwareCaptureVerified": true,
+    "initialOrder": true
+  },
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 362,
+    "inputText": 4000,
+    "outputSpeech": 364,
+    "outputText": 682
+  },
+  "estimatedUsd": 0.008537982,
+  "usageFullyObserved": true,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.23503842499999997,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "audioBytes": 698880,
+  "audioHash": "f295723240fbdba2ede1f911fb5530d4b50691fdd445130f0e6cf692219a5651",
+  "toolNames": [
+    "get_menu",
+    "apply_cart_changes",
+    "apply_cart_changes",
+    "get_cart",
+    "apply_cart_changes",
+    "get_item_details",
+    "apply_cart_changes",
+    "get_cart"
+  ],
+  "toolErrors": [
+    {
+      "name": "apply_cart_changes",
+      "error": {
+        "code": "INVALID_ARGUMENTS",
+        "message": "Check the required fields and the advertised tool input schema.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    },
+    {
+      "name": "apply_cart_changes",
+      "error": {
+        "code": "INVALID_ARGUMENTS",
+        "message": "Check the required fields and the advertised tool input schema.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    },
+    {
+      "name": "apply_cart_changes",
+      "error": {
+        "code": "INVALID_ARGUMENTS",
+        "message": "Check the required fields and the advertised tool input schema.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    }
+  ],
+  "transcripts": [
+    {
+      "role": "USER",
+      "text": "add one classic burger and a medium lemonade."
+    },
+    {
+      "role": "USER",
+      "text": "change the lemonade to large. tell me the total before tax."
+    },
+    {
+      "role": "ASSISTANT",
+      "text": "The current subtotal before tax for your order of one classic burger and a medium lemonade is $9.00."
+    },
+    {
+      "role": "ASSISTANT",
+      "text": " To change the lemonade to large, we need to remove the medium lemonade and add a large lemonade instead."
+    }
+  ],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 0,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-h-20261014/nova-response.wav"
+}

@@ -1,10 +1,12 @@
-# MCP contracts, version 0.3
+# MCP contracts, version 0.4
 
 ## Read-only price comparisons — October 13, 2026
 
-The current catalog has **ten** tools. `compare_menu_prices` takes one to eight uniquely labeled options, each containing one to ten selections (at most 30 item copies per option). Product IDs, variants and choices come from menu discovery. Missing multi-size variants, required choices, unavailable components and unsupported conversions fail closed. A listed meal chooses its drink through `choices.drink`; eligible standalone sandwiches may use `meal: {drink, drink_variant}` for conversion.
+The current catalog has **ten** tools. `compare_menu_prices` takes one to eight uniquely labeled options, each containing one to ten selections (at most 30 item copies per option). Product IDs, variants and choices come from menu discovery. Missing multi-size variants, required choices, unavailable components and unsupported conversions fail closed. A listed meal chooses its drink through `choices.drink` and now requires `meal_drink_variant: "medium"`. Omitting this size returns `MEAL_SIZE_REQUIRED`; declaring a non-medium listed meal returns `LISTED_MEAL_SIZE`, with instructions naming the eligible standalone base. For a large drink, use that standalone sandwich with `meal: {drink, drink_variant: "large"}`. The tool never silently replaces a declared large drink with medium.
 
-The result contains current `menu_version` / `price_version`, currency, per-option priced lines and totals, and signed `subtotal_delta_cents` for each later option relative to the FIRST option. Positive costs more; negative saves. `absolute_subtotal_difference_cents` separately reports the nonnegative price gap and `more_expensive_label` identifies the premium-bearing option (null for a tie). These fields prevent input ordering from silently redefining an unsigned upgrade/premium; explicit signed comparisons retain their sign. Both totals and modifiers use the existing ordering engine, including the simulator's fixture tax. This is an informational read, not a held quote or approval. It respects the same restaurant, lane, session and staff fences, and does not change any persisted entity. Existing tool inputs and result envelopes are unchanged.
+The result contains current `menu_version` / `price_version`, currency, per-option priced lines and totals, and comparisons against the FIRST option. `comparison_kind` defaults to `price_gap`: each comparison has `kind: "price_gap"` and a nonnegative `amount_cents`; no signed delta is exposed. Explicitly request `signed_change` only for a signed later-minus-first change: `amount_cents` and `subtotal_delta_cents` then preserve the sign. Both modes retain `absolute_subtotal_difference_cents` and `more_expensive_label` (null for a tie). Returned lines echo quantity, variant, choices and the actual drink/size with `kind: "listed"` or `"conversion"`. This makes the priced configuration inspectable; it cannot independently infer an unstated customer intent.
+
+Both totals and modifiers use the existing ordering engine, including the simulator's fixture tax. This is an informational read, not a held quote or approval. It respects the same restaurant, lane, session and staff fences, and does not change any persisted entity. **0.4 is a breaking revision to the 0.3 comparison input/output:** clients must declare listed-meal size, read `amount_cents`, and explicitly select signed mode when needed. The other nine tools and result envelopes are unchanged.
 
 Example input:
 
@@ -14,7 +16,11 @@ Example input:
     {
       "label": "baseline",
       "selections": [
-        { "product_id": "cheeseburger-meal", "choices": { "drink": ["cola"] } }
+        {
+          "product_id": "cheeseburger-meal",
+          "meal_drink_variant": "medium",
+          "choices": { "drink": ["cola"] }
+        }
       ]
     },
     {
@@ -22,6 +28,7 @@ Example input:
       "selections": [
         {
           "product_id": "cheeseburger-meal",
+          "meal_drink_variant": "medium",
           "choices": { "drink": ["lemonade"] }
         }
       ]

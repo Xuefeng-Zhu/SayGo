@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
-const evidence = "docs/evidence";
+const evidence = process.env.SAYGO_E2E_EVIDENCE_DIR ?? "docs/evidence";
 async function start(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/lane/lane-1");

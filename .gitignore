@@ -7,6 +7,7 @@ dist/
 build/
 coverage/
 .next/
+.next-qa-*/
 *.tsbuildinfo
 test-results/
 playwright-report/

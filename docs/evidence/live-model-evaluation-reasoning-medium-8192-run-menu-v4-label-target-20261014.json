@@ -1,0 +1,97 @@
+{
+  "at": "2026-10-14T07:22:40.165Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "DynamoDB Local",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "implementationHash": "38c6dc6eb22c70ddced882ebbf22049466c031a997e88c9d48f1b7aaf846fba6",
+  "completed": true,
+  "trialCount": 1,
+  "passed": 1,
+  "maximumApprovedUsd": 1,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.4251927369999999,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "reasoning": "medium",
+  "suite": "original",
+  "selectedIds": [
+    "allowed-removal"
+  ],
+  "fullSuite": false,
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "menu-v4-label-target-20261014",
+  "priorEstimatedUsd": 1.15911653,
+  "cumulativeEstimatedUsd": 1.16316662,
+  "inputTokens": 7523,
+  "outputTokens": 570,
+  "modelCalls": 2,
+  "estimatedUsd": 0.004050089999999999,
+  "reservedUpperEstimateUsd": 0.004050089999999999,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-10T18:22:42Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "allowed-removal",
+      "question": "Compare Garden Burger and Harbor Cheeseburger in Harbor Burger v1. Does each explicitly allow the cheese option in the remove group, and what is the cheeseburger's price for that removal? This asks only about listed modifications, not allergy safety. Return garden:yes_or_no|cheeseburger:yes_or_no|removal_cents.",
+      "expected": "garden:no|cheeseburger:yes|0",
+      "actual": "garden:no|cheeseburger:yes|0",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 44,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2533,
+          "outputTokens": 78,
+          "ms": 1195,
+          "stopReason": "tool_use",
+          "requestId": "96ac87f4-e299-4388-b886-f634f54a691b"
+        },
+        {
+          "inputTokens": 4990,
+          "outputTokens": 492,
+          "ms": 2329,
+          "stopReason": "end_turn",
+          "requestId": "a63f16b2-16e1-4c43-ad54-3a53b56e98c4"
+        }
+      ],
+      "elapsedMs": 3746,
+      "agentConfigurationHash": "4c8ae2b35b51fef38a654fe9729a07786ae2b7e0db62cf68f6efa8f138e8f375"
+    }
+  ]
+}

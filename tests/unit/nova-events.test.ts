@@ -1,10 +1,67 @@
 import { it, expect, vi } from "vitest";
 import { recoveryFor } from "@saygo/contracts";
 import { McpCallError } from "../../packages/integrations/src/mcp-client.js";
+import { AudioGeneration } from "../../packages/integrations/src/audio-state.js";
+it("rejects obsolete completion audio and deduplicates interruption notifications", () => {
+  const state = new AudioGeneration();
+  state.start("first");
+  expect(state.interrupt()).toBe(1);
+  expect(state.interrupt()).toBe(1);
+  state.start("second");
+  expect(state.accepts("first")).toBe(false);
+  expect(state.accepts("second")).toBe(true);
+  state.start("third");
+  expect(state.accepts("second")).toBe(false);
+});
 import {
   NovaSession,
   type VoiceEvent,
 } from "../../packages/integrations/src/nova.js";
+it("cleans up and reports unknown usage when the provider rejects stream startup", async () => {
+  const onStreamEnd = vi.fn();
+  const onProviderRequest = vi.fn();
+  const session = new NovaSession(
+    { tools: [], call: async () => ({}) },
+    () => {},
+    { onStreamEnd, onProviderRequest },
+  );
+  const client = (
+    session as unknown as {
+      client: { send(): Promise<never>; destroy(): void };
+    }
+  ).client;
+  vi.spyOn(client, "send").mockRejectedValue(
+    new Error("synthetic startup rejection"),
+  );
+  const destroy = vi.spyOn(client, "destroy");
+  await expect(session.start()).rejects.toThrow("synthetic startup rejection");
+  expect(destroy).toHaveBeenCalledOnce();
+  expect(onProviderRequest).toHaveBeenCalledOnce();
+  expect(onStreamEnd).toHaveBeenCalledExactlyOnceWith(
+    false,
+    "ProviderStreamError",
+  );
+});
+it("reports real provider modality counts without inventing zero usage", () => {
+  const events: VoiceEvent[] = [];
+  const session = new NovaSession({ tools: [], call: async () => ({}) }, (e) =>
+    events.push(e),
+  );
+  session.handle("usageEvent", {
+    details: {
+      total: {
+        input: { speechTokens: 5, textTokens: 10 },
+        output: { speechTokens: 20, textTokens: 30 },
+      },
+    },
+  });
+  expect(events[0]).toMatchObject({
+    type: "usage",
+    usage: { inputSpeech: 5, inputText: 10, outputSpeech: 20, outputText: 30 },
+  });
+  expect(() => session.handle("usageEvent", {})).toThrow();
+  session.close();
+});
 it("preserves structured recovery instructions in the Nova tool response", async () => {
   const recovery = recoveryFor("FENCED", "Staff controls this interaction.");
   const call = vi.fn(async () => {
@@ -97,5 +154,58 @@ it("provider interruption drops delayed output from the old completion", () => {
   expect(
     events.filter((e) => e.type === "audio").map((e) => e.generation),
   ).toEqual([0, 1]);
+  session.close();
+});
+it("resumes new audio content under a reused completion ID after barge-in", () => {
+  const events: VoiceEvent[] = [];
+  const session = new NovaSession({ tools: [], call: async () => ({}) }, (e) =>
+    events.push(e),
+  );
+  session.handle("completionStart", { completionId: "shared" });
+  session.handle("contentStart", {
+    completionId: "shared",
+    contentId: "old-audio",
+    type: "AUDIO",
+    role: "ASSISTANT",
+  });
+  session.handle("audioOutput", {
+    completionId: "shared",
+    contentId: "old-audio",
+    content: "AAA=",
+  });
+  session.interrupt();
+  session.handle("contentStart", {
+    completionId: "shared",
+    contentId: "user",
+    role: "USER",
+    additionalModelFields: '{"generationStage":"FINAL"}',
+  });
+  session.handle("textOutput", { contentId: "user", content: "A new request" });
+  session.handle("contentEnd", { completionId: "shared", contentId: "user" });
+  session.handle("contentStart", {
+    completionId: "shared",
+    contentId: "new-audio",
+    type: "AUDIO",
+    role: "ASSISTANT",
+  });
+  session.handle("audioOutput", {
+    completionId: "shared",
+    contentId: "old-audio",
+    content: "AAA=",
+  });
+  session.handle("audioOutput", {
+    completionId: "shared",
+    contentId: "new-audio",
+    content: "AAA=",
+  });
+  expect(
+    events.filter((e) => e.type === "audio").map((e) => e.generation),
+  ).toEqual([0, 1]);
+  expect(
+    events.some(
+      (e) =>
+        e.type === "caption" && e.role === "USER" && e.text === "A new request",
+    ),
+  ).toBe(true);
   session.close();
 });

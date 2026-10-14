@@ -17,7 +17,7 @@ const requestId = z
   .string()
   .uuid()
   .describe(
-    "Caller-generated UUID for this logical operation. Reuse with identical arguments after a lost response; never reuse for a changed request.",
+    "Caller-generated fresh UUID v4 (8-4-4-4-12 hex digits; third group starts 4, fourth starts 8/9/a/b). Never use zero-filled sequential placeholders. Reuse with identical arguments after a lost response; never reuse for a changed request.",
   );
 export const choiceSchema = z
   .record(z.string().max(50), z.array(z.string().max(50)).max(8))
@@ -47,6 +47,11 @@ const selection = {
 export const menuPriceSelectionSchema = z
   .object({
     ...selection,
+    meal_drink_variant: variant
+      .optional()
+      .describe(
+        "Required for a listed meal product: explicitly declare the customer's requested drink size. Listed meals include medium only. For a large drink, select the standalone base product with meal.drink_variant='large', not a listed meal.",
+      ),
     meal: z
       .object({ drink: id, drink_variant: variant })
       .strict()
@@ -58,6 +63,12 @@ export const menuPriceSelectionSchema = z
   .strict();
 export const menuPriceInputSchema = z
   .object({
+    comparison_kind: z
+      .enum(["price_gap", "signed_change"])
+      .default("price_gap")
+      .describe(
+        "price_gap returns a NONNEGATIVE premium/savings magnitude regardless of option order. Use signed_change ONLY when the customer explicitly requests a signed later-minus-first change; negative signed change is never an unsigned upgrade cost.",
+      ),
     options: z
       .array(
         z
@@ -75,7 +86,7 @@ export const menuPriceInputSchema = z
       .min(1)
       .max(8)
       .describe(
-        "Complete hypothetical selections to price without changing the cart. Each later option is compared against the first; positive delta means MORE expensive.",
+        "Complete hypothetical selections to price without changing the cart. Each later option is compared against the first; comparison_kind chooses a nonnegative gap or an explicitly signed later-minus-first change.",
       ),
   })
   .strict()

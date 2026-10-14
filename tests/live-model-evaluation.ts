@@ -23,6 +23,7 @@ import {
 } from "./live-budget.js";
 import { mcpEvaluations } from "./mcp-evaluations.js";
 import { menuGeneralizationEvaluations } from "./menu-generalization-evaluations.js";
+import { ProviderBudget } from "./provider-budget.js";
 import {
   menuPriceGuidance,
   menuAnswerFormatGuidance,
@@ -41,8 +42,21 @@ const reasoning = process.env.SAYGO_EVAL_REASONING ?? "disabled";
 const suite = process.env.SAYGO_EVAL_SUITE ?? "original";
 if (!["original", "generalization"].includes(suite))
   throw new Error("Choose original or generalization evaluation suite.");
-const questions =
+const suiteQuestions =
   suite === "original" ? mcpEvaluations : menuGeneralizationEvaluations;
+const selectedIds = process.env.SAYGO_EVAL_IDS?.split(",");
+if (
+  selectedIds &&
+  (!selectedIds.length ||
+    new Set(selectedIds).size !== selectedIds.length ||
+    selectedIds.some((id) => !suiteQuestions.some((q) => q.id === id)))
+)
+  throw new Error(
+    "Evaluation subset must contain unique IDs from the unchanged suite.",
+  );
+const questions = selectedIds
+  ? suiteQuestions.filter((q) => selectedIds.includes(q.id))
+  : suiteQuestions;
 if (!["disabled", "low", "medium"].includes(reasoning))
   throw new Error("Choose disabled, low or medium reasoning.");
 const runId = process.env.SAYGO_EVAL_RUN_ID;
@@ -80,9 +94,15 @@ for (const name of existingReports) {
     ? prior.estimatedUsd
     : prior.reservedUpperEstimateUsd;
 }
+const approvalId = process.env.SAYGO_PROVIDER_APPROVAL_ID;
+const sharedBudget = approvalId ? new ProviderBudget(approvalId) : undefined;
+const sharedState = await sharedBudget?.state();
 const budget = remainingBudget(
   approvedMaximumUsd,
-  priorEstimatedUsd,
+  sharedState
+    ? sharedState.observedUsd +
+        Object.values(sharedState.pending).reduce((n, p) => n + p.usd, 0)
+    : priorEstimatedUsd,
   maximumOutputTokens,
 );
 process.env.DYNAMODB_NAMESPACE = `saygo_eval_${randomUUID().replaceAll("-", "")}`;
@@ -252,6 +272,10 @@ try {
           },
         };
         const reserve = budget.reserve(input);
+        const sharedReservation = await sharedBudget?.reserve(
+          reserve.usd,
+          `text:${suite}:${question.id}:${turn}`,
+        );
         const callStarted = performance.now();
         const result = await bedrock.send(new ConverseCommand(input), {
           abortSignal: AbortSignal.timeout(65000),
@@ -262,6 +286,13 @@ try {
           usage?.outputTokens ?? NaN,
           reserve.inputBound,
         );
+        if (sharedReservation)
+          await sharedBudget!.settle(
+            sharedReservation,
+            (usage!.inputTokens! * INPUT_USD_PER_MILLION +
+              usage!.outputTokens! * OUTPUT_USD_PER_MILLION) /
+              1e6,
+          );
         trial.modelCalls.push({
           inputTokens: usage!.inputTokens!,
           outputTokens: usage!.outputTokens!,
@@ -384,8 +415,11 @@ try {
       trialCount: trials.length,
       passed: trials.filter((t) => t.pass).length,
       maximumApprovedUsd: approvedMaximumUsd,
+      additionalApproval: sharedBudget ? await sharedBudget.state() : undefined,
       reasoning,
       suite,
+      selectedIds,
+      fullSuite: !selectedIds,
       scoring:
         "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
       runId,

@@ -7,6 +7,19 @@ import {
   type Recovery,
 } from "@saygo/contracts";
 import { DomainError } from "@saygo/domain";
+import type { z } from "zod";
+
+export function inputRecovery(error: z.ZodError): Recovery {
+  return recoveryFor(
+    "INVALID_ARGUMENTS",
+    error.issues.some(
+      (issue) =>
+        issue.path[0] === "request_id" && issue.code === "invalid_format",
+    )
+      ? "request_id must be a valid UUID v4: 8-4-4-4-12 hexadecimal digits, with the third group beginning 4 and fourth beginning 8, 9, a or b. Generate a fresh UUID for a new operation; retain it for identical retries. Do not use a zero-filled sequential placeholder."
+      : "Check the required fields and the advertised tool input schema.",
+  );
+}
 
 const orderSummary = (order: Order | null) =>
   order

@@ -2,6 +2,8 @@ export interface AudioNodeLike {
   stop(): void;
   onended: ((...args: never[]) => unknown) | null;
 }
+export const MAX_BUFFERED_PLAYBACK_SECONDS = 30;
+export const MAX_QUEUED_PLAYBACK_SOURCES = 512;
 /** Scheduler independent of React so interruption/backpressure is testable without a microphone. */
 export class PlaybackQueue {
   generation = 0;
@@ -17,7 +19,12 @@ export class PlaybackQueue {
     if (!Number.isFinite(duration) || duration <= 0 || duration > 5)
       throw new Error("Invalid audio duration");
     const at = Math.max(this.next, this.now());
-    if (at - this.now() + duration > 5)
+    // Sonic emits faster than real time: a normal sentence may arrive before
+    // five seconds have played. Bound memory/latency without rejecting it.
+    if (
+      at - this.now() + duration > MAX_BUFFERED_PLAYBACK_SECONDS ||
+      this.sources.size >= MAX_QUEUED_PLAYBACK_SOURCES
+    )
       throw new Error("Playback queue exceeded its limit");
     const source = start(at);
     this.sources.add(source);

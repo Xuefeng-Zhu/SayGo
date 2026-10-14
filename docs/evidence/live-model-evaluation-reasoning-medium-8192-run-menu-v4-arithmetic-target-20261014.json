@@ -1,0 +1,143 @@
+{
+  "at": "2026-10-14T07:25:51.961Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "DynamoDB Local",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "implementationHash": "38c6dc6eb22c70ddced882ebbf22049466c031a997e88c9d48f1b7aaf846fba6",
+  "completed": false,
+  "fatal": "Error",
+  "trialCount": 1,
+  "passed": 0,
+  "maximumApprovedUsd": 1,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.48480657699999985,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "reasoning": "medium",
+  "suite": "generalization",
+  "selectedIds": [
+    "fresh-two-size-tradeoff"
+  ],
+  "fullSuite": false,
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "menu-v4-arithmetic-target-20261014",
+  "priorEstimatedUsd": 1.16316662,
+  "cumulativeEstimatedUsd": 1.2227804599999998,
+  "inputTokens": 12973,
+  "outputTokens": 20121,
+  "modelCalls": 3,
+  "estimatedUsd": 0.05961384,
+  "reservedUpperEstimateUsd": 0.059613840000000015,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-10T18:22:42Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "fresh-two-size-tradeoff",
+      "question": "In Harbor Burger v1, compare small lemonade plus large fries with large lemonade plus small fries. No meal discount or tax. Return first_cents|second_cents|first_minus_second_cents.",
+      "expected": "700|650|50",
+      "actual": "",
+      "pass": false,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 59,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "first",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "small"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "large"
+                  }
+                ]
+              },
+              {
+                "label": "second",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "large"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "small"
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "signed_change"
+          },
+          "resultHash": "8591edaa9f95af22a4cb28e7c1a80e0972f51ca1f8f7bb83b3fcda318c0707be",
+          "ms": 57,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2503,
+          "outputTokens": 6491,
+          "ms": 34479,
+          "stopReason": "tool_use",
+          "requestId": "14b72471-5399-4e2a-af0b-c12b0d01cd73"
+        },
+        {
+          "inputTokens": 4960,
+          "outputTokens": 5438,
+          "ms": 27734,
+          "stopReason": "tool_use",
+          "requestId": "c99ef43b-a019-43df-bcd5-bde619687550"
+        },
+        {
+          "inputTokens": 5510,
+          "outputTokens": 8192,
+          "ms": 42431,
+          "stopReason": "max_tokens",
+          "requestId": "2ab417a9-c3f6-4e14-a26d-d2956b114008"
+        }
+      ],
+      "elapsedMs": 104940,
+      "agentConfigurationHash": "4c8ae2b35b51fef38a654fe9729a07786ae2b7e0db62cf68f6efa8f138e8f375",
+      "error": "Error"
+    }
+  ]
+}

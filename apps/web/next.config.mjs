@@ -3,7 +3,11 @@ import { fileURLToPath, URL } from "node:url";
 loadEnvironment({
   path: fileURLToPath(new URL("../../.env", import.meta.url)),
 });
+const qaPort = process.env.SAYGO_QA_WEB_PORT;
+if (qaPort && (!/^\d+$/.test(qaPort) || +qaPort < 1024 || +qaPort > 65535))
+  throw new Error("SAYGO_QA_WEB_PORT must be a valid non-privileged port.");
 const config = {
+  ...(qaPort ? { distDir: `.next-qa-${qaPort}` } : {}),
   transpilePackages: ["@saygo/contracts"],
   poweredByHeader: false,
   devIndicators: false,

@@ -127,6 +127,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
               selections: [
                 {
                   product_id: "cheeseburger-meal",
+                  meal_drink_variant: "medium",
                   choices: { drink: ["cola"] },
                 },
               ],
@@ -136,6 +137,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
               selections: [
                 {
                   product_id: "cheeseburger-meal",
+                  meal_drink_variant: "medium",
                   choices: { drink: ["lemonade"] },
                 },
               ],
@@ -147,7 +149,11 @@ describe("DynamoDB, real MCP and durable ordering", () => {
       expect(result.options.map((o) => o.totals.subtotal)).toEqual([
         1175, 1225,
       ]);
-      expect(result.comparisons[0].subtotal_delta_cents).toBe(50);
+      expect(result.comparisons[0]).toMatchObject({
+        kind: "price_gap",
+        amount_cents: 50,
+      });
+      expect(result.comparisons[0]).not.toHaveProperty("subtotal_delta_cents");
       // The bundled call adds local timing; the strict wire payload is unchanged.
       expect(await snapshot()).toEqual(before);
       expect((await getView(scope)).quote).toMatchObject({

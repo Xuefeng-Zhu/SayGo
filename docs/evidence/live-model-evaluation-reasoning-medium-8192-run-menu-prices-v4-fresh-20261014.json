@@ -1,0 +1,554 @@
+{
+  "at": "2026-10-14T07:19:07.030Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "DynamoDB Local",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "implementationHash": "37b45784ca96ea2a5a4cfe597ca777b895385ea1c980b4d0ace500da06655652",
+  "completed": false,
+  "fatal": "Error",
+  "trialCount": 5,
+  "passed": 4,
+  "maximumApprovedUsd": 1,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.3924946869999999,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "reasoning": "medium",
+  "suite": "generalization",
+  "fullSuite": true,
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "menu-prices-v4-fresh-20261014",
+  "priorEstimatedUsd": 0.97912595,
+  "cumulativeEstimatedUsd": 1.1304685700000001,
+  "inputTokens": 85889,
+  "outputTokens": 44727,
+  "modelCalls": 19,
+  "estimatedUsd": 0.15134262,
+  "reservedUpperEstimateUsd": 0.15134261999999998,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-10T18:22:42Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "fresh-chicken-drink-upgrade",
+      "question": "In Harbor Burger v1, compare the listed Crispy Chicken Meal with medium cola against the same listed meal with medium lemonade. Ignore tax. Return cola_meal_cents|lemonade_meal_cents|lemonade_upgrade_cents.",
+      "expected": "1275|1325|50",
+      "actual": "1275|1325|50",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 61,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "cola_meal",
+                "selections": [
+                  {
+                    "product_id": "chicken-meal",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              },
+              {
+                "label": "lemonade_meal",
+                "selections": [
+                  {
+                    "product_id": "chicken-meal",
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    },
+                    "quantity": 1
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "price_gap"
+          },
+          "resultHash": "8d9542fb2223fdcb162c2c66e09c08e008d05e3304267c856f8e2529c28b6ef4",
+          "ms": 47,
+          "isError": true
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "selections": [
+                  {
+                    "product_id": "chicken-meal",
+                    "choices": {
+                      "drink": [
+                        "cola"
+                      ]
+                    },
+                    "meal_drink_variant": "medium",
+                    "quantity": 1
+                  }
+                ],
+                "label": "cola_meal"
+              },
+              {
+                "selections": [
+                  {
+                    "product_id": "chicken-meal",
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    },
+                    "meal_drink_variant": "medium",
+                    "quantity": 1
+                  }
+                ],
+                "label": "lemonade_meal"
+              }
+            ],
+            "comparison_kind": "price_gap"
+          },
+          "resultHash": "2aa423750381482c9da6182151e0cc09fcd95c2e13ca71be03ddc4ad2de460e2",
+          "ms": 21,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2466,
+          "outputTokens": 2701,
+          "ms": 14807,
+          "stopReason": "tool_use",
+          "requestId": "9877541c-5200-4d51-8bea-ba19827fe1c7"
+        },
+        {
+          "inputTokens": 4923,
+          "outputTokens": 2792,
+          "ms": 14531,
+          "stopReason": "tool_use",
+          "requestId": "0bf75ca5-6575-49ac-8e89-43b439e4137e"
+        },
+        {
+          "inputTokens": 5138,
+          "outputTokens": 925,
+          "ms": 4642,
+          "stopReason": "tool_use",
+          "requestId": "c2411fba-a0e4-4d53-8b65-2ea2d5d295a3"
+        },
+        {
+          "inputTokens": 5714,
+          "outputTokens": 267,
+          "ms": 1445,
+          "stopReason": "end_turn",
+          "requestId": "8e556507-6bc7-470f-a0ea-ff7f35c9af50"
+        }
+      ],
+      "elapsedMs": 35846,
+      "agentConfigurationHash": "d3348b44ae8705aec795c634d5cd1e324d7a9673fd728fb02fbcef91c11e29d7"
+    },
+    {
+      "id": "fresh-cheaper-drink-change",
+      "question": "In Harbor Burger v1, change the drink in a listed Classic Burger Meal from medium lemonade to medium tea. Ignore tax. Return original_meal_cents|changed_meal_cents|signed_changed_minus_original_cents.",
+      "expected": "1150|1100|-50",
+      "actual": "1150|1100|-50",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 35,
+          "isError": false
+        },
+        {
+          "name": "get_item_details",
+          "args": {
+            "product_id": "classic-meal"
+          },
+          "resultHash": "b7ac5438650dcf158f533c16b20f81cb7269b40614a49e3151bbca04ab633dde",
+          "ms": 58,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "original",
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "changed",
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "signed_change"
+          },
+          "resultHash": "7ac475363258d53000aafbecc392f93a9a53a716fd19b77e8e03144389a80ad9",
+          "ms": 52,
+          "isError": true
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "lemonade"
+                      ]
+                    },
+                    "meal_drink_variant": "medium"
+                  }
+                ],
+                "label": "original"
+              },
+              {
+                "selections": [
+                  {
+                    "product_id": "classic-meal",
+                    "choices": {
+                      "drink": [
+                        "tea"
+                      ]
+                    },
+                    "meal_drink_variant": "medium"
+                  }
+                ],
+                "label": "changed"
+              }
+            ],
+            "comparison_kind": "signed_change"
+          },
+          "resultHash": "e9faeb81eda80320ff802f083f27d14d0809ca95b012c796c559dd181173fb7a",
+          "ms": 45,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2463,
+          "outputTokens": 810,
+          "ms": 4041,
+          "stopReason": "tool_use",
+          "requestId": "49af664d-f552-4381-b2e9-79040a9a43b5"
+        },
+        {
+          "inputTokens": 4920,
+          "outputTokens": 2773,
+          "ms": 14289,
+          "stopReason": "tool_use",
+          "requestId": "fbf550da-c8aa-44ae-b0f3-e1eecb16136f"
+        },
+        {
+          "inputTokens": 5183,
+          "outputTokens": 4731,
+          "ms": 23914,
+          "stopReason": "tool_use",
+          "requestId": "c6edd073-c571-422b-a96b-72606128f62b"
+        },
+        {
+          "inputTokens": 5381,
+          "outputTokens": 1599,
+          "ms": 7006,
+          "stopReason": "tool_use",
+          "requestId": "98533bb3-244c-472f-9c1e-09c69ce25817"
+        },
+        {
+          "inputTokens": 5923,
+          "outputTokens": 382,
+          "ms": 2839,
+          "stopReason": "end_turn",
+          "requestId": "7dc88a12-7941-4fe9-b511-74b2c8b4211d"
+        }
+      ],
+      "elapsedMs": 52426,
+      "agentConfigurationHash": "d3348b44ae8705aec795c634d5cd1e324d7a9673fd728fb02fbcef91c11e29d7"
+    },
+    {
+      "id": "fresh-garden-extras",
+      "question": "In Harbor Burger v1, price one regular Garden Burger with both extra cheese and an extra patty. Use only allowed extras. Return subtotal_cents|premium_over_plain_garden_cents. Ignore tax.",
+      "expected": "1050|325",
+      "actual": "1050|325",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 33,
+          "isError": false
+        },
+        {
+          "name": "get_item_details",
+          "args": {
+            "product_id": "garden"
+          },
+          "resultHash": "682259e010267cde26d73082c69523d71806a38b7e197e15745bed494bdf8d62",
+          "ms": 211,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "comparison_kind": "price_gap",
+            "options": [
+              {
+                "label": "plain_garden",
+                "selections": [
+                  {
+                    "product_id": "garden",
+                    "variant": "regular"
+                  }
+                ]
+              },
+              {
+                "label": "garden_with_extras",
+                "selections": [
+                  {
+                    "product_id": "garden",
+                    "variant": "regular",
+                    "choices": {
+                      "extra": [
+                        "patty",
+                        "cheese"
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "resultHash": "7741f1e382cd9747953c601acd5d0a51b0aa33f1d814627e15b94452747ec000",
+          "ms": 118,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2461,
+          "outputTokens": 59,
+          "ms": 562,
+          "stopReason": "tool_use",
+          "requestId": "163af15c-1dd9-4edc-8bc8-8e169cd63b37"
+        },
+        {
+          "inputTokens": 4918,
+          "outputTokens": 5390,
+          "ms": 31503,
+          "stopReason": "tool_use",
+          "requestId": "e6a06653-4d37-46de-bad6-08a7e00c09aa"
+        },
+        {
+          "inputTokens": 5231,
+          "outputTokens": 855,
+          "ms": 4259,
+          "stopReason": "tool_use",
+          "requestId": "3068df09-de39-47eb-9a37-d8d2ea64c0fd"
+        },
+        {
+          "inputTokens": 5719,
+          "outputTokens": 255,
+          "ms": 1543,
+          "stopReason": "end_turn",
+          "requestId": "c4fbd774-c356-46d4-9eaa-85346a26cbd1"
+        }
+      ],
+      "elapsedMs": 38511,
+      "agentConfigurationHash": "d3348b44ae8705aec795c634d5cd1e324d7a9673fd728fb02fbcef91c11e29d7"
+    },
+    {
+      "id": "fresh-quantity-tax",
+      "question": "In Harbor Burger v1, price two regular Double Harbor burgers, each with extra cheese. Apply the simulator's 8% tax rounded to the nearest cent. Return subtotal_cents|tax_cents|total_cents.",
+      "expected": "1900|152|2052",
+      "actual": "1900|152|2052",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 43,
+          "isError": false
+        },
+        {
+          "name": "get_item_details",
+          "args": {
+            "product_id": "double"
+          },
+          "resultHash": "f18a64fb75d9d936d95aa7c6455db2471395568f54b48a3c4b30b3de4a5d2111",
+          "ms": 21,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2463,
+          "outputTokens": 73,
+          "ms": 809,
+          "stopReason": "tool_use",
+          "requestId": "b25df789-6762-48e3-b401-9166881817c2"
+        },
+        {
+          "inputTokens": 4920,
+          "outputTokens": 77,
+          "ms": 917,
+          "stopReason": "tool_use",
+          "requestId": "3b5d28c7-089f-49c2-8e0b-de8eb531dbe1"
+        },
+        {
+          "inputTokens": 5228,
+          "outputTokens": 447,
+          "ms": 2209,
+          "stopReason": "end_turn",
+          "requestId": "136c2d6e-01c1-46a1-867a-f8f628a7364c"
+        }
+      ],
+      "elapsedMs": 4368,
+      "agentConfigurationHash": "d3348b44ae8705aec795c634d5cd1e324d7a9673fd728fb02fbcef91c11e29d7"
+    },
+    {
+      "id": "fresh-two-size-tradeoff",
+      "question": "In Harbor Burger v1, compare small lemonade plus large fries with large lemonade plus small fries. No meal discount or tax. Return first_cents|second_cents|first_minus_second_cents.",
+      "expected": "700|650|50",
+      "actual": "",
+      "pass": false,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 48,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "first",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "small"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "large"
+                  }
+                ]
+              },
+              {
+                "label": "second",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "large"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "small"
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "signed_change"
+          },
+          "resultHash": "8591edaa9f95af22a4cb28e7c1a80e0972f51ca1f8f7bb83b3fcda318c0707be",
+          "ms": 56,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2458,
+          "outputTokens": 6668,
+          "ms": 40684,
+          "stopReason": "tool_use",
+          "requestId": "7acae048-6814-4413-bc95-bfb8945f33a2"
+        },
+        {
+          "inputTokens": 4915,
+          "outputTokens": 5731,
+          "ms": 26758,
+          "stopReason": "tool_use",
+          "requestId": "5a969a63-7083-4d4b-a622-9b94dda1be11"
+        },
+        {
+          "inputTokens": 5465,
+          "outputTokens": 8192,
+          "ms": 41506,
+          "stopReason": "max_tokens",
+          "requestId": "3cb7a7d7-a218-4c32-8997-d870257e77c0"
+        }
+      ],
+      "elapsedMs": 109244,
+      "agentConfigurationHash": "d3348b44ae8705aec795c634d5cd1e324d7a9673fd728fb02fbcef91c11e29d7",
+      "error": "Error"
+    }
+  ]
+}

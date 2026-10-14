@@ -1,0 +1,15 @@
+{
+  "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+  "publicationDate": "2026-10-14T03:30:16Z",
+  "region": "us-west-2",
+  "currency": "USD",
+  "unit": "per million tokens",
+  "nova2Lite": { "input": 0.33, "output": 2.75 },
+  "nova2Sonic": {
+    "inputText": 0.319,
+    "outputText": 2.651,
+    "inputSpeech": 3,
+    "outputSpeech": 12
+  },
+  "note": "Official regional catalog rechecked before the approved follow-up tests. The rates are unchanged from those configured in the runners. Usage estimates are not an invoice or an AWS billing cap."
+}

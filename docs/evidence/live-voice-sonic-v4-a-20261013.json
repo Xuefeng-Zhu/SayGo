@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-14T06:50:48.737Z",
+  "runId": "sonic-v4-a-20261013",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "region": "us-west-2",
+  "passed": false,
+  "fatal": "TypeError",
+  "assertions": {},
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 0,
+    "inputText": 0,
+    "outputSpeech": 0,
+    "outputText": 0
+  },
+  "estimatedUsd": 0,
+  "usageFullyObserved": false,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.19280623999999996,
+    "pending": {}
+  },
+  "audioBytes": 0,
+  "audioHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "toolNames": [],
+  "transcripts": [],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 0,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-a-20261013/nova-response.wav"
+}

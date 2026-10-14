@@ -1,0 +1,89 @@
+{
+  "at": "2026-10-14T07:08:30.180Z",
+  "runId": "sonic-v4-g-20261014",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "implementationHash": "e42a1c4119b2bf9438b41f26d6c2f33f632315098049cae342b1786939898997",
+  "region": "us-west-2",
+  "passed": false,
+  "fatal": "Error",
+  "failurePhase": "spoken_price_comparison",
+  "providerRequests": 1,
+  "browserStatus": [
+    "Listening · response interrupted"
+  ],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "visualDirectory": "/private/tmp/saygo-voice-qa-ueFeSA",
+  "assertions": {
+    "pageIdentity": true,
+    "meaningfulPage": true,
+    "softwareCaptureVerified": true,
+    "initialOrder": true,
+    "correctedExactPrice": true,
+    "stableLineIdentity": true,
+    "reviewBlockedWhileVoice": true
+  },
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 496,
+    "inputText": 4020,
+    "outputSpeech": 197,
+    "outputText": 687
+  },
+  "estimatedUsd": 0.006955617,
+  "usageFullyObserved": true,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.22650044299999997,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "audioBytes": 19200,
+  "audioHash": "a85501e6d90634cc93fea69d8abc83a48822711e1a77fbb0b3d11d6a3be8ab6d",
+  "toolNames": [
+    "get_menu",
+    "get_cart",
+    "apply_cart_changes",
+    "apply_cart_changes",
+    "compare_menu_prices",
+    "compare_menu_prices"
+  ],
+  "toolErrors": [
+    {
+      "name": "compare_menu_prices",
+      "error": {
+        "code": "MEAL_SIZE_REQUIRED",
+        "message": "Declare meal_drink_variant from the customer's requested size. Listed cheeseburger-meal includes medium only; for another size use standalone cheeseburger with meal:{drink:<listed ID>,drink_variant:<requested size>}.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    }
+  ],
+  "transcripts": [
+    {
+      "role": "USER",
+      "text": "add one classic burger and a medium lemonade."
+    },
+    {
+      "role": "USER",
+      "text": "change the lemonade to large. tell me the total before"
+    },
+    {
+      "role": "USER",
+      "text": "tax."
+    }
+  ],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 2,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-g-20261014/nova-response.wav"
+}

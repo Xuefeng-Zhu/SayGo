@@ -1,0 +1,87 @@
+{
+  "at": "2026-10-14T07:05:25.617Z",
+  "runId": "sonic-v4-f-20261014",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "implementationHash": "2fe1efa82b6ffa4ca0724ab1df0a95baefb93de4edd983ad38022943806c38ae",
+  "region": "us-west-2",
+  "passed": false,
+  "fatal": "Error",
+  "failurePhase": "spoken_price_comparison",
+  "providerRequests": 1,
+  "browserStatus": [
+    "Listening · AI-generated speech"
+  ],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "visualDirectory": "/private/tmp/saygo-voice-qa-0DqHLT",
+  "assertions": {
+    "pageIdentity": true,
+    "meaningfulPage": true,
+    "softwareCaptureVerified": true,
+    "initialOrder": true,
+    "correctedExactPrice": true,
+    "stableLineIdentity": false,
+    "reviewBlockedWhileVoice": true
+  },
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 505,
+    "inputText": 4370,
+    "outputSpeech": 483,
+    "outputText": 1469
+  },
+  "estimatedUsd": 0.012599349000000001,
+  "usageFullyObserved": true,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.21954482599999997,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "audioBytes": 927360,
+  "audioHash": "3195d2c242aafa968615cb5d2cdd5e6192e115aa11f7d6a446a1c541c3c95aae",
+  "toolNames": [
+    "get_menu",
+    "get_cart",
+    "apply_cart_changes",
+    "get_item_details",
+    "get_cart",
+    "apply_cart_changes",
+    "get_item_details"
+  ],
+  "transcripts": [
+    {
+      "role": "USER",
+      "text": "add one classic burger and a medium lemonade."
+    },
+    {
+      "role": "USER",
+      "text": "change the lemonade to large. tell me the total before tax."
+    },
+    {
+      "role": "USER",
+      "text": "how much extra is medium lemonade with medium"
+    },
+    {
+      "role": "USER",
+      "text": "cola in a cheeseburger meal?"
+    },
+    {
+      "role": "ASSISTANT",
+      "text": "Sorry, I can't process that request right now. The system requires exact product IDs and valid selections for price comparisons."
+    }
+  ],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 0,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-f-20261014/nova-response.wav"
+}

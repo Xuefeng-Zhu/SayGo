@@ -5,6 +5,7 @@ export default ts.config(
     ignores: [
       ".local/**",
       "**/.next/**",
+      "**/.next-qa-*/**",
       "dist/**",
       "**/node_modules/**",
       "test-results/**",

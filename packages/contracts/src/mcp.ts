@@ -124,6 +124,30 @@ const menu = z
   })
   .strict();
 const summary = z.string();
+const comparisonDetails = {
+  label: stableId,
+  absolute_subtotal_difference_cents: cents,
+  more_expensive_label: stableId.nullable(),
+};
+const comparisonSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      ...comparisonDetails,
+      kind: z.literal("price_gap"),
+      amount_cents: cents.describe(
+        "Nonnegative premium or savings magnitude; never negate it.",
+      ),
+    })
+    .strict(),
+  z
+    .object({
+      ...comparisonDetails,
+      kind: z.literal("signed_change"),
+      amount_cents: z.number().int(),
+      subtotal_delta_cents: z.number().int(),
+    })
+    .strict(),
+]);
 export const cartResultSchema = z
   .object({
     cart_version: version,
@@ -165,6 +189,17 @@ export const toolDataSchemas = {
               z
                 .object({
                   product_id: stableId,
+                  variant: z.string().optional(),
+                  quantity: z.number().int().min(1).max(10),
+                  choices,
+                  meal: z
+                    .object({
+                      drink: stableId,
+                      drink_variant: z.string(),
+                      kind: z.enum(["listed", "conversion"]),
+                    })
+                    .strict()
+                    .optional(),
                   unit_price: cents,
                   line_total: cents,
                   modifiers: z.array(z.string()),
@@ -174,27 +209,7 @@ export const toolDataSchemas = {
           })
           .strict(),
       ),
-      comparisons: z.array(
-        z
-          .object({
-            label: stableId,
-            subtotal_delta_cents: z
-              .number()
-              .int()
-              .describe(
-                "This option subtotal minus FIRST option subtotal. Positive costs more; negative saves money. Before tax.",
-              ),
-            absolute_subtotal_difference_cents: cents.describe(
-              "Nonnegative pre-tax gap between this option and the baseline, independent of which was submitted first. Use for an unsigned premium or savings magnitude.",
-            ),
-            more_expensive_label: stableId
-              .nullable()
-              .describe(
-                "Label of the more expensive of these two options, or null when tied. Identifies which option carries the nonnegative premium.",
-              ),
-          })
-          .strict(),
-      ),
+      comparisons: z.array(comparisonSchema),
       summary,
     })
     .strict(),
@@ -284,6 +299,8 @@ export const toolOutputSchemas = {
 };
 
 const recoveryActions: Record<string, Recovery["next_action"]> = {
+  MEAL_SIZE_REQUIRED: "correct_arguments",
+  LISTED_MEAL_SIZE: "correct_arguments",
   INCOMPLETE_SELECTION: "correct_arguments",
   VERSION_CONFLICT: "refresh_cart",
   STALE_QUOTE: "review_order",

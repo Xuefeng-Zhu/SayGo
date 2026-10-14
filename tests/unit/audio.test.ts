@@ -51,9 +51,25 @@ it("interrupt stops active and already scheduled audio; stale chunks never sched
   expect(scheduled).toBe(2);
   expect(queue.enqueue(1, 1, start)).toBe(true);
 });
-it("caps playback backlog at five seconds", () => {
+it("accepts a normal faster-than-real-time speech burst but caps backlog at thirty seconds", () => {
   const queue = new PlaybackQueue(() => 0);
   const start = (): AudioNodeLike => ({ stop: () => {}, onended: null });
   queue.enqueue(0, 4, start);
-  expect(() => queue.enqueue(0, 2, start)).toThrow("limit");
+  expect(queue.enqueue(0, 2, start)).toBe(true);
+  for (let i = 0; i < 6; i++) queue.enqueue(0, 4, start);
+  expect(queue.next).toBe(30);
+  expect(() => queue.enqueue(0, 1, start)).toThrow("limit");
+});
+it("also bounds source count and releases completed sources", () => {
+  const queue = new PlaybackQueue(() => 0);
+  const nodes: AudioNodeLike[] = [];
+  const start = (): AudioNodeLike => {
+    const node = { stop: () => {}, onended: null } as AudioNodeLike;
+    nodes.push(node);
+    return node;
+  };
+  for (let i = 0; i < 512; i++) queue.enqueue(0, 0.01, start);
+  expect(() => queue.enqueue(0, 0.01, start)).toThrow("limit");
+  nodes[0].onended?.();
+  expect(queue.enqueue(0, 0.01, start)).toBe(true);
 });

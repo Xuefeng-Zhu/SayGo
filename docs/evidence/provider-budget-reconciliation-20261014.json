@@ -1,0 +1,9 @@
+{
+  "approvalId": "fixes-voice-20261013",
+  "evidence": "live-voice-sonic-v4-e-20261014.json",
+  "runId": "sonic-v4-e-20261014",
+  "settledUsageEstimateUsd": 0.006757135,
+  "reason": "The preserved report confirms natural stream termination and final observed modality usage. A cleanup timing race checked settlement before that callback, leaving the ticket pending even though the report later recorded usageFullyObserved=true. The report is preserved and the ledger has now settled that known usage. Future tests wait for the callback before settlement.",
+  "earlierUnknownReservationUsd": 0.25,
+  "invoiceVerified": false
+}

@@ -4,12 +4,20 @@ import { config } from "@saygo/db";
 import { scopeForToken, getView, voiceLease } from "@saygo/domain";
 import { openMcp } from "@saygo/integrations";
 import { NovaSession } from "../../../packages/integrations/src/nova.js";
+import type { VoiceSessionOptions } from "../../../packages/integrations/src/nova.js";
 import { agentToken, cookie } from "./auth.js";
 const active = new Map<string, () => Promise<void>>();
 export async function stopVoice(sessionId: string) {
   await active.get(sessionId)?.();
 }
-export function attachVoice(server: Server) {
+export function attachVoice(
+  server: Server,
+  testing: VoiceSessionOptions & {
+    maximumSessionMs?: number;
+    onEvent?: (event: Record<string, unknown>) => void;
+    onEnd?: () => void;
+  } = {},
+) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 8192 });
   server.on("upgrade", (req, socket, head) => {
     if (
@@ -39,6 +47,7 @@ export function attachVoice(server: Server) {
           let ended = false;
           let stopping: Promise<void> | undefined;
           const send = (event: object) => {
+            testing.onEvent?.(event as Record<string, unknown>);
             if (ws.readyState === WebSocket.OPEN) {
               if (ws.bufferedAmount > 256000) {
                 stop();
@@ -65,6 +74,7 @@ export function attachVoice(server: Server) {
               await mcp?.close();
               await voiceLease(scope.session_id, null);
               active.delete(scope.session_id);
+              testing.onEnd?.();
             })();
             return stopping;
           };
@@ -80,7 +90,10 @@ export function attachVoice(server: Server) {
               )
               .catch(() => void stop());
           }, 500);
-          const limit = setTimeout(stop, 7 * 60000);
+          const limit = setTimeout(
+            stop,
+            Math.min(testing.maximumSessionMs ?? 7 * 60000, 7 * 60000),
+          );
           active.set(scope.session_id, stop);
           let windowStart = Date.now(),
             bytes = 0;
@@ -121,7 +134,7 @@ export function attachVoice(server: Server) {
               await mcp.close();
               return;
             }
-            nova = new NovaSession(mcp, send);
+            nova = new NovaSession(mcp, send, testing);
             await nova.start();
             await stop();
           })().catch(() => {

@@ -7,12 +7,13 @@ export class AudioGeneration {
     this.current = completion;
   }
   interrupt() {
+    if (this.current && this.blocked.has(this.current)) return this.generation;
     if (this.current) this.blocked.add(this.current);
     this.generation++;
     return this.generation;
   }
   accepts(completion: string) {
-    return !this.blocked.has(completion);
+    return completion === this.current && !this.blocked.has(completion);
   }
 }
 export class BoundedQueue<T> implements AsyncIterable<T> {

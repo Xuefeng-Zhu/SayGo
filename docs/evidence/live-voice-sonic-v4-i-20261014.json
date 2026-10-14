@@ -1,0 +1,116 @@
+{
+  "at": "2026-10-14T07:14:24.931Z",
+  "runId": "sonic-v4-i-20261014",
+  "modelId": "amazon.nova-2-sonic-v1:0",
+  "implementationHash": "d8cf53ca687d51278e06af07fe0708de6b5d09f66fdd9cb9423ca2d65984935f",
+  "region": "us-west-2",
+  "passed": true,
+  "providerRequests": 1,
+  "browserStatus": [],
+  "pageErrors": [],
+  "consoleErrorCount": 0,
+  "visualDirectory": "/private/tmp/saygo-voice-qa-w7ogBy",
+  "assertions": {
+    "pageIdentity": true,
+    "meaningfulPage": true,
+    "softwareCaptureVerified": true,
+    "initialOrder": true,
+    "correctedExactPrice": true,
+    "stableLineIdentity": true,
+    "reviewBlockedWhileVoice": true,
+    "comparisonCaption": true,
+    "realSpeechInput": true,
+    "realSpeechOutput": true,
+    "authoritativeMcpCalls": true,
+    "staffStoppedStream": true,
+    "noVoiceConsentOrSubmission": true,
+    "voiceLeaseCleared": true,
+    "noBrowserErrors": true,
+    "noFrameworkOverlay": true
+  },
+  "input": "macOS synthetic TTS through software MediaStream; NO physical microphone",
+  "browser": "headless Chromium, muted output",
+  "usage": {
+    "inputSpeech": 500,
+    "inputText": 4142,
+    "outputSpeech": 110,
+    "outputText": 744
+  },
+  "estimatedUsd": 0.006113642,
+  "usageFullyObserved": true,
+  "unknownOutcomeReservationUsd": 0,
+  "additionalApproval": {
+    "approvalId": "fixes-voice-20261013",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-14T03:07:16.347Z",
+    "priorHistoricalEstimateUsd": 0.78631971,
+    "observedUsd": 0.24115206699999997,
+    "pending": {
+      "7fd79074-b4ed-4534-8955-5137e42e7107": {
+        "usd": 0.25,
+        "label": "synthetic browser/Sonic stream; 90-second cap"
+      }
+    }
+  },
+  "audioBytes": 211200,
+  "audioHash": "3fd8260668ca50f464bbf9d9f40cdd27194461e38f4becfb123172feddcb730d",
+  "toolNames": [
+    "get_menu",
+    "get_cart",
+    "apply_cart_changes",
+    "apply_cart_changes",
+    "apply_cart_changes",
+    "compare_menu_prices",
+    "compare_menu_prices"
+  ],
+  "toolErrors": [
+    {
+      "name": "apply_cart_changes",
+      "error": {
+        "code": "INVALID_ARGUMENTS",
+        "message": "request_id must be a valid UUID v4: 8-4-4-4-12 hexadecimal digits, with the third group beginning 4 and fourth beginning 8, 9, a or b. Generate a fresh UUID for a new operation; retain it for identical retries. Do not use a zero-filled sequential placeholder.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    },
+    {
+      "name": "compare_menu_prices",
+      "error": {
+        "code": "MEAL_SIZE_REQUIRED",
+        "message": "Declare meal_drink_variant from the customer's requested size. Listed cheeseburger-meal includes medium only; for another size use standalone cheeseburger with meal:{drink:<listed ID>,drink_variant:<requested size>}.",
+        "retryable": false,
+        "next_action": "correct_arguments"
+      }
+    }
+  ],
+  "transcripts": [
+    {
+      "role": "USER",
+      "text": "add one classic burger and a medium lemonade."
+    },
+    {
+      "role": "USER",
+      "text": "change the lemonade to large. tell me the total before"
+    },
+    {
+      "role": "USER",
+      "text": "tax."
+    },
+    {
+      "role": "USER",
+      "text": "how much extra is medium lemonade compared with medium cola in a cheeseburger?"
+    },
+    {
+      "role": "USER",
+      "text": "meal?"
+    },
+    {
+      "role": "ASSISTANT",
+      "text": "medium lemonade costs 50 cents more than medium cola in a cheeseburger meal."
+    }
+  ],
+  "temporaryEntityDataCleaned": true,
+  "physicalHardwareVerified": false,
+  "interruptionSignalsObserved": 0,
+  "audioFile": "/Users/frank/mygit/SayGo/.local/voice-qa/sonic-v4-i-20261014/nova-response.wav"
+}
