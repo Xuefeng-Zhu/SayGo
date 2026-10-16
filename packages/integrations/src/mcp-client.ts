@@ -39,6 +39,7 @@ export function decodeToolResult(
 }
 function uncertainResult(name: string): Recovery {
   const readOnly = [
+    "find_meal_savings",
     "get_menu",
     "get_item_details",
     "compare_menu_prices",
@@ -72,7 +73,7 @@ function rethrowKnownFailure(error: unknown): void {
 export async function openMcp(token: string) {
   const client = new Client({
     name: "saygo-conversation-gateway",
-    version: "0.4.0",
+    version: "0.5.0",
   });
   const transport = new StreamableHTTPClientTransport(
     new URL(`http://127.0.0.1:${config.SAYGO_RUNTIME_PORT}/mcp`),

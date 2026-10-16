@@ -40,6 +40,7 @@ export function toolData(name: ToolName, raw: Record<string, unknown>) {
     case "get_menu":
     case "get_item_details":
     case "compare_menu_prices":
+    case "find_meal_savings":
       data = raw;
       break;
     case "get_order_status":

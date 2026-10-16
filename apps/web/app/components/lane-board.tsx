@@ -11,6 +11,7 @@ import { api, ApiError } from "./api";
 import { Header, Footer, Login } from "./shell";
 import { ItemEditor, MenuPanel, Modal, OrderLines, OrderTotals } from "./order";
 import { useVoice } from "./use-voice";
+import { CorrectionReceipt, MealSavingsCard } from "./draft-improvements";
 type Config = {
   demo: boolean;
   voice: boolean;
@@ -252,6 +253,12 @@ export function LaneBoard() {
               </div>
               {view.lines.length ? (
                 <OrderLines
+                  changedLineIds={
+                    !view.order &&
+                    view.last_change?.cart_version === view.cart_version
+                      ? view.last_change.changes.map((change) => change.line_id)
+                      : []
+                  }
                   lines={
                     view.quote?.snapshot.lines ??
                     view.order?.snapshot.lines ??
@@ -299,6 +306,20 @@ export function LaneBoard() {
                     item.
                   </p>
                 </div>
+              )}
+              {!view.order && view.last_change && (
+                <CorrectionReceipt
+                  receipt={view.last_change}
+                  disabled={Boolean(locked)}
+                  voiceActive={voice.active}
+                  undo={() =>
+                    void act("/lane/undo", {
+                      receipt_id: view.last_change!.id,
+                      expected_version: view.cart_version,
+                      request_id: crypto.randomUUID(),
+                    })
+                  }
+                />
               )}
               {view.session.staff_message && (
                 <div className="notice">
@@ -409,6 +430,27 @@ export function LaneBoard() {
                   </>
                 ) : null}
               </section>
+              {!view.order &&
+                view.lines.length > 0 &&
+                view.session.owner === "ai" &&
+                !view.session.needs_staff_review && (
+                  <MealSavingsCard
+                    key={view.session.id}
+                    proposal={view.meal_savings}
+                    disabled={
+                      Boolean(locked) || view.unresolved_choices.length > 0
+                    }
+                    voiceActive={voice.active}
+                    check={() => void call("find_meal_savings")}
+                    apply={(proposal) =>
+                      void act("/lane/meal-savings/apply", {
+                        proposal_id: proposal.id,
+                        expected_version: proposal.cart_version,
+                        request_id: crypto.randomUUID(),
+                      })
+                    }
+                  />
+                )}
               {!view.order &&
                 view.session.owner === "ai" &&
                 !view.session.needs_staff_review && (

@@ -142,6 +142,7 @@ export const toolSchemas = {
   get_menu: z.object({}).strict(),
   get_item_details: z.object({ product_id: id }).strict(),
   compare_menu_prices: menuPriceInputSchema,
+  find_meal_savings: z.object({}).strict(),
   get_cart: z.object({}).strict(),
   apply_cart_changes: changesSchema,
   prepare_order_review: z
@@ -279,6 +280,42 @@ export type Quote = {
   snapshot: QuoteSnapshot;
   approved: boolean;
 };
+export type CartReceipt = {
+  id: string;
+  kind: "correction" | "meal_savings" | "undo";
+  cart_version: number;
+  created_at: string;
+  changes: {
+    line_id: string;
+    before: PricedLine | null;
+    after: PricedLine | null;
+  }[];
+  before_totals: Totals;
+  after_totals: Totals;
+  total_delta_cents: number;
+  undo_available: boolean;
+  undo_unavailable_reason?: string;
+};
+export type MealSavingsProposal = {
+  id: string;
+  cart_version: number;
+  menu_version: number;
+  price_version: number;
+  before: Totals;
+  after: Totals;
+  savings_cents: number;
+  subtotal_savings_cents: number;
+  groups: {
+    sandwich_line_id: string;
+    side_line_id: string;
+    drink_line_id: string;
+    product_id: string;
+    drink: string;
+    drink_variant: string;
+    quantity: number;
+    summary: string;
+  }[];
+};
 export type View = {
   session: {
     id: string;
@@ -298,6 +335,8 @@ export type View = {
   menu: Menu;
   cart_version: number;
   summary: string;
+  last_change: CartReceipt | null;
+  meal_savings: MealSavingsProposal | null;
   reset_token?: string;
   timing?: { tool_ms: number };
 };

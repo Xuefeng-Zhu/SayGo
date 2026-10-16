@@ -69,7 +69,7 @@ describe("MCP contracts", () => {
       }).success,
     ).toBe(false);
   });
-  it("advertises a validated recovery variant for all ten tools", () => {
+  it("advertises a validated recovery variant for every tool", () => {
     const error = recoveryFor("VERSION_CONFLICT", "Refresh the cart.");
     for (const name of Object.keys(toolOutputSchemas) as ToolName[]) {
       const payload = { result: { ok: false, error } };

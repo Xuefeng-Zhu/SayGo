@@ -95,6 +95,57 @@ beforeEach(async () => {
   token = started.token;
 });
 describe("DynamoDB, real MCP and durable ordering", () => {
+  it("discovers equivalent meal savings over HTTP without writes and treats a lost response as a read", async () => {
+    await tool(scope, "apply_cart_changes", {
+      expected_version: 0,
+      request_id: randomUUID(),
+      commands: [
+        { type: "add", product_id: "classic", choices: { remove: ["onions"] } },
+        { type: "add", product_id: "fries", variant: "medium" },
+        { type: "add", product_id: "lemonade", variant: "large" },
+      ],
+    });
+    const before = await getView(scope);
+    const m = await openMcp(agentToken(scope));
+    try {
+      expect(
+        m.tools.find((item) => item.name === "find_meal_savings")?.annotations,
+      ).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      });
+      const { timing: _timing, ...raw } = await m.call("find_meal_savings", {});
+      const result = toolDataSchemas.find_meal_savings.parse(raw);
+      expect(result.proposal).toMatchObject({
+        savings_cents: 108,
+        groups: [
+          { drink_variant: "large", sandwich_line_id: before.lines[0].id },
+        ],
+      });
+      expect(await getView(scope)).toEqual(before);
+      const spy = vi
+        .spyOn(m.client, "callTool")
+        .mockRejectedValueOnce(new Error("Lost read response"));
+      try {
+        await expect(m.call("find_meal_savings", {})).rejects.toMatchObject({
+          recovery: {
+            code: "TRANSPORT_ERROR",
+            retryable: true,
+            next_action: "retry_read",
+          },
+        });
+      } finally {
+        spy.mockRestore();
+      }
+      await staffAction({ ...scope, actor: "staff" }, "takeover");
+      await expect(m.call("find_meal_savings", {})).rejects.toMatchObject({
+        recovery: { code: "FENCED" },
+      });
+    } finally {
+      await m.close();
+    }
+  });
   it("compares menu prices over HTTP without changing any entity, quote or approval", async () => {
     await add();
     const quote = await review();
@@ -302,7 +353,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         agentToken(scope),
       );
       expect(result.initialized.result.protocolVersion).toBe("2025-11-25");
-      expect(result.listed.result.tools).toHaveLength(10);
+      expect(result.listed.result.tools).toHaveLength(11);
       const errors = (result.listed.schemaFindings ?? [])
         .flatMap((t: { findings: { severity: string }[] }) => t.findings)
         .filter((f: { severity: string }) => f.severity === "error");
@@ -570,6 +621,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         ],
       });
       const cart = await call("get_cart");
+      await call("find_meal_savings");
       expect(cart).not.toHaveProperty("menu");
       expect(cart).not.toHaveProperty("cart");
       expect(cart).not.toHaveProperty("session");
@@ -591,7 +643,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         reason: "allergy",
         concern: "Restricted test concern",
       });
-      expect(called.size).toBe(10);
+      expect(called.size).toBe(11);
     } finally {
       await m.close();
     }
@@ -921,7 +973,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     expect(forged.status).toBe(401);
     expect((await fetch(`${base}/api/kitchen`)).status).toBe(401);
   });
-  it("negotiates MCP 2025-11-25, discovers ten tools and calls get_cart", async () => {
+  it("negotiates MCP 2025-11-25, discovers eleven tools and calls get_cart", async () => {
     const response = await fetch(
       `http://127.0.0.1:${config.SAYGO_RUNTIME_PORT}/mcp`,
       {
@@ -947,7 +999,7 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     expect((await response.json()).result.protocolVersion).toBe("2025-11-25");
     const m = await openMcp(agentToken(scope));
     try {
-      expect(m.tools).toHaveLength(10);
+      expect(m.tools).toHaveLength(11);
       expect((await m.call("get_cart", {})).cart_version).toBe(0);
     } finally {
       await m.close();

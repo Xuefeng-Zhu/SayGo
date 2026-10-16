@@ -1,6 +1,8 @@
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import type {
   Cart,
+  CartReceipt,
+  MealSavingsProposal,
   Menu,
   Order,
   Product,
@@ -19,15 +21,41 @@ import {
   clearEntities,
   type Tx,
 } from "@saygo/db";
-import type { SessionRow } from "../../db/src/schema.js";
+import type { SessionRow, CartUndo } from "../../db/src/schema.js";
 import { applyCommands, assert, priceCart, product } from "./engine.js";
 import { compareMenuPrices } from "./menu-prices.js";
+import { cartReceipt } from "./cart-receipt.js";
+import { findMealSavings } from "./meal-savings.js";
 export const hash = (value: unknown) =>
   createHash("sha256")
     .update(typeof value === "string" ? value : JSON.stringify(value))
     .digest("hex");
+// DynamoDB map ordering is not stable across persistence; identities bind values,
+// not their in-memory property insertion order.
+function draftHash(value: unknown): string {
+  const canonical = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(canonical);
+    if (item && typeof item === "object")
+      return Object.fromEntries(
+        Object.entries(item)
+          .filter(([, v]) => v !== undefined)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, v]) => [key, canonical(v)]),
+      );
+    return item;
+  };
+  return hash(canonical(value));
+}
 type Session = SessionRow;
-type Context = { tx: Tx; s: Session; cart: Cart; menu: Menu; scope: Scope };
+type Context = {
+  tx: Tx;
+  s: Session;
+  cart: Cart;
+  menu: Menu;
+  scope: Scope;
+  lastChange: CartReceipt | null;
+  undo: CartUndo | null;
+};
 async function loadMenu(tx: Tx): Promise<Menu> {
   const r = await tx.get("restaurants", RESTAURANT);
   assert(r, "NOT_SEEDED", "Run pnpm db:seed.", 503);
@@ -80,6 +108,8 @@ async function context(tx: Tx, scope: Scope): Promise<Context> {
     tx,
     s,
     cart: { version: row.version, lines: row.lines, issues: row.issues },
+    lastChange: row.last_change ?? null,
+    undo: row.undo ?? null,
     menu,
     scope,
   };
@@ -107,9 +137,211 @@ async function audit(c: Context, kind: string, details: object = {}) {
     created_at: new Date().toISOString(),
   });
 }
-async function saveCart(c: Context) {
+async function saveCart(
+  c: Context,
+  before: Cart,
+  kind: CartReceipt["kind"] = "correction",
+) {
   await invalidate(c);
-  c.tx.put("carts", { session_id: c.s.id, ...c.cart });
+  c.lastChange = cartReceipt(before, c.cart, c.menu, {
+    id: randomUUID(),
+    kind,
+    created_at: new Date().toISOString(),
+  });
+  c.undo =
+    c.lastChange && kind !== "undo"
+      ? {
+          receipt_id: c.lastChange.id,
+          before,
+          menu_version: c.menu.version,
+          price_version: c.menu.price_version,
+          fence: c.s.fence,
+          cart_hash: draftHash(c.cart),
+        }
+      : null;
+  c.tx.put("carts", {
+    session_id: c.s.id,
+    ...c.cart,
+    last_change: c.lastChange,
+    undo: c.undo,
+  });
+}
+function undoUnavailable(c: Context, hasOrder: boolean): string | undefined {
+  if (!c.undo || !c.lastChange || c.undo.receipt_id !== c.lastChange.id)
+    return "Only the latest change can be undone once.";
+  if (hasOrder) return "Submitted orders need staff assistance.";
+  if (c.s.owner !== "ai" || c.s.needs_staff_review)
+    return "Staff must finish handling this order first.";
+  if (c.undo.fence !== c.s.fence)
+    return "Staff control changed since this correction.";
+  if (c.s.voice_until && new Date(c.s.voice_until).getTime() >= Date.now())
+    return "Stop voice before undoing this change.";
+  if (
+    c.undo.menu_version !== c.menu.version ||
+    c.undo.price_version !== c.menu.price_version
+  )
+    return "The menu changed. Make a new correction using current prices.";
+  if (
+    c.lastChange.cart_version !== c.cart.version ||
+    c.undo.cart_hash !== draftHash(c.cart)
+  )
+    return "The cart changed since this correction.";
+  return undefined;
+}
+function savingsProposal(
+  c: Context,
+): { proposal: MealSavingsProposal; cart: Cart } | null {
+  if (c.s.owner !== "ai" || c.s.needs_staff_review) return null;
+  const plan = findMealSavings(c.cart, c.menu);
+  if (!plan) return null;
+  const { cart, ...details } = plan;
+  return {
+    cart,
+    proposal: {
+      id: draftHash({
+        session_id: c.s.id,
+        fence: c.s.fence,
+        menu_version: c.menu.version,
+        price_version: c.menu.price_version,
+        before: c.cart,
+        plan,
+      }),
+      cart_version: c.cart.version,
+      menu_version: c.menu.version,
+      price_version: c.menu.price_version,
+      ...details,
+    },
+  };
+}
+async function mealSavingsResult(c: Context) {
+  const proposal = (await c.tx.get("orders", c.s.id))
+    ? null
+    : (savingsProposal(c)?.proposal ?? null);
+  return {
+    proposal,
+    summary: proposal
+      ? "Equivalent meals can lower this order's total. Check the displayed proposal and choose Apply savings to accept."
+      : "No equivalent meal savings are available for this draft. Keep the requested items, sizes, and customizations.",
+  };
+}
+export async function getMealSavings(scope: Scope) {
+  return withScope(scope, (c) => mealSavingsResult(c));
+}
+export type UndoInput = {
+  receipt_id: string;
+  expected_version: number;
+  request_id: string;
+};
+export type ApplyMealSavingsInput = {
+  proposal_id: string;
+  expected_version: number;
+  request_id: string;
+};
+async function customerDraft(c: Context) {
+  assert(
+    c.scope.actor === "customer",
+    "CONSENT",
+    "Only the customer screen can accept this change.",
+    403,
+  );
+  editable(c);
+  voiceIdle(c);
+  await noOrder(c);
+}
+async function customerRetry(
+  c: Context,
+  operation: string,
+  input: UndoInput | ApplyMealSavingsInput,
+) {
+  const key = `${c.s.id}:customer:${operation}:${input.request_id}`;
+  const payload_hash = draftHash(input);
+  const prior = await c.tx.get("idempotency", key);
+  if (prior)
+    assert(
+      prior.payload_hash === payload_hash,
+      "IDEMPOTENCY_MISMATCH",
+      "This request ID was already used for a different change.",
+    );
+  return { prior, key, payload_hash };
+}
+export async function undoCartChange(
+  scope: Scope,
+  input: UndoInput,
+): Promise<View> {
+  return withScope(scope, async (c) => {
+    await customerDraft(c);
+    const { prior, key, payload_hash } = await customerRetry(c, "undo", input);
+    if (prior) return view(c, "Already undone. Showing the latest cart.");
+    version(c, input.expected_version);
+    assert(
+      c.lastChange?.id === input.receipt_id,
+      "STALE_RECEIPT",
+      "Only the latest change can be undone. Refresh the order.",
+    );
+    const reason = undoUnavailable(c, false);
+    assert(
+      !reason,
+      "UNDO_UNAVAILABLE",
+      reason ?? "This change cannot be undone.",
+    );
+    const before = c.cart;
+    c.cart = {
+      ...structuredClone(c.undo!.before),
+      version: before.version + 1,
+    };
+    await saveCart(c, before, "undo");
+    c.tx.put("idempotency", {
+      key,
+      payload_hash,
+      created_at: new Date().toISOString(),
+    });
+    await audit(c, "cart_change_undone", {
+      receipt_id: input.receipt_id,
+      version: c.cart.version,
+    });
+    return view(
+      c,
+      "Undid the latest change. Review this order again before confirming.",
+    );
+  });
+}
+export async function applyMealSavings(
+  scope: Scope,
+  input: ApplyMealSavingsInput,
+): Promise<View> {
+  return withScope(scope, async (c) => {
+    await customerDraft(c);
+    const { prior, key, payload_hash } = await customerRetry(
+      c,
+      "meal-savings",
+      input,
+    );
+    if (prior)
+      return view(c, "Savings already applied. Showing the latest cart.");
+    version(c, input.expected_version);
+    const current = savingsProposal(c);
+    assert(
+      current && current.proposal.id === input.proposal_id,
+      "STALE_SAVINGS",
+      "This meal proposal changed. Check the current items and savings before accepting.",
+    );
+    const before = c.cart;
+    c.cart = { ...current.cart, version: before.version + 1 };
+    await saveCart(c, before, "meal_savings");
+    c.tx.put("idempotency", {
+      key,
+      payload_hash,
+      created_at: new Date().toISOString(),
+    });
+    await audit(c, "meal_savings_accepted", {
+      proposal_id: input.proposal_id,
+      savings_cents: current.proposal.savings_cents,
+    });
+    return view(
+      c,
+      "Applied the displayed meal savings. Your items and customizations are preserved. Review the new total before confirming.",
+    );
+  });
 }
 function editable(c: Context) {
   if (c.scope.actor === "staff")
@@ -152,6 +384,7 @@ async function view(c: Context, summary = ""): Promise<View> {
       : null;
   const approval = q ? await c.tx.get("approvals", q.id) : null;
   const order = await c.tx.get("orders", c.s.id);
+  const undoReason = undoUnavailable(c, Boolean(order));
   const quote: Quote | null = q
     ? {
         id: q.id,
@@ -187,6 +420,14 @@ async function view(c: Context, summary = ""): Promise<View> {
         }
       : null,
     menu: c.menu,
+    last_change: c.lastChange
+      ? {
+          ...c.lastChange,
+          undo_available: !undoReason,
+          ...(undoReason ? { undo_unavailable_reason: undoReason } : {}),
+        }
+      : null,
+    meal_savings: order ? null : (savingsProposal(c)?.proposal ?? null),
     summary,
   };
 }
@@ -401,6 +642,7 @@ export async function tool(
           "Use only the listed choices. Ask staff about allergies or cross-contact.",
       };
     if (name === "compare_menu_prices") return compareMenuPrices(c.menu, args);
+    if (name === "find_meal_savings") return mealSavingsResult(c);
     if (name === "get_cart" || name === "get_order_status")
       return { ...(await view(c)) };
     if (name === "request_staff_help") {
@@ -513,8 +755,9 @@ export async function tool(
         };
       }
       version(c, a.expected_version);
+      const before = c.cart;
       c.cart = applyCommands(c.cart, c.menu, a.commands, a.clarification);
-      await saveCart(c);
+      await saveCart(c, before);
       c.tx.put("idempotency", {
         key,
         payload_hash: payloadHash,
@@ -607,8 +850,9 @@ export async function tool(
       "Only the customer reset action can use the reset token.",
       403,
     );
+    const before = c.cart;
     c.cart = { version: c.cart.version + 1, lines: [], issues: [] };
-    await saveCart(c);
+    await saveCart(c, before);
     return {
       ...(await view(c, "Draft reset. No submitted order was cancelled.")),
     };

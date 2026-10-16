@@ -7,6 +7,9 @@ import {
   beginInteraction,
   endInteraction,
   getView,
+  getMealSavings,
+  applyMealSavings,
+  undoCartChange,
   activeScope,
   approve,
   staffAction,
@@ -147,6 +150,31 @@ app.post("/api/lane/depart", async (req, res) => {
 });
 app.get("/api/lane/state", async (req, res) => {
   res.json(await getView(await laneScope(req)));
+});
+app.get("/api/lane/meal-savings", async (req, res) => {
+  res.json(await getMealSavings(await laneScope(req)));
+});
+app.post("/api/lane/meal-savings/apply", async (req, res) => {
+  const a = z
+    .object({
+      proposal_id: z.string().regex(/^[a-f0-9]{64}$/),
+      expected_version: z.number().int().nonnegative(),
+      request_id: z.string().uuid(),
+    })
+    .strict()
+    .parse(req.body);
+  res.json(await applyMealSavings(await laneScope(req), a));
+});
+app.post("/api/lane/undo", async (req, res) => {
+  const a = z
+    .object({
+      receipt_id: z.string().uuid(),
+      expected_version: z.number().int().nonnegative(),
+      request_id: z.string().uuid(),
+    })
+    .strict()
+    .parse(req.body);
+  res.json(await undoCartChange(await laneScope(req), a));
 });
 // Every customer conversational action crosses HTTP MCP initialize -> list -> call.
 async function laneResult(scope: Scope, result: Record<string, unknown>) {

@@ -1,4 +1,11 @@
-import type { Product, Line, Issue, QuoteSnapshot } from "@saygo/contracts";
+import type {
+  Product,
+  Line,
+  Issue,
+  QuoteSnapshot,
+  Cart,
+  CartReceipt,
+} from "@saygo/contracts";
 
 export type SessionRow = {
   id: string;
@@ -41,6 +48,14 @@ export type OrderRow = {
   created_at: string;
   updated_at: string;
 };
+export type CartUndo = {
+  receipt_id: string;
+  before: Cart;
+  menu_version: number;
+  price_version: number;
+  fence: number;
+  cart_hash: string;
+};
 export type Rows = {
   restaurants: {
     id: string;
@@ -73,6 +88,8 @@ export type Rows = {
     version: number;
     lines: Line[];
     issues: Issue[];
+    last_change?: CartReceipt | null;
+    undo?: CartUndo | null;
   };
   quotes: QuoteRow;
   approvals: {

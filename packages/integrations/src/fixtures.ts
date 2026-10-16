@@ -20,6 +20,7 @@ export const fixtures = [
   { id: "unsupported", text: "Add a pizza." },
   { id: "allergy", text: "I have an allergy. Can I speak to staff?" },
   { id: "review", text: "Review my order." },
+  { id: "savings", text: "Can you make this cheaper?" },
 ];
 // Deliberately finite, transparent fixtures. This is NOT an NLP/voice model.
 export async function runFixture(input: string, call: ToolCaller) {
@@ -33,6 +34,7 @@ export async function runFixture(input: string, call: ToolCaller) {
     );
   const { timing: _timing, ...cart } = await call("get_cart", {});
   const v = cartResultSchema.parse(cart);
+  if (fixture.id === "savings") return call("find_meal_savings", {});
   if (fixture.id === "side") {
     const m = await call("get_item_details", { product_id: "chicken" });
     return {

@@ -124,6 +124,32 @@ const menu = z
   })
   .strict();
 const summary = z.string();
+export const mealSavingsProposalSchema = z
+  .object({
+    id: z.string().regex(/^[a-f0-9]{64}$/),
+    cart_version: version,
+    menu_version: version,
+    price_version: version,
+    before: totals,
+    after: totals,
+    savings_cents: cents,
+    subtotal_savings_cents: cents,
+    groups: z.array(
+      z
+        .object({
+          sandwich_line_id: stableId,
+          side_line_id: stableId,
+          drink_line_id: stableId,
+          product_id: stableId,
+          drink: stableId,
+          drink_variant: z.string(),
+          quantity: z.number().int().min(1).max(10),
+          summary: z.string(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
 const comparisonDetails = {
   label: stableId,
   absolute_subtotal_difference_cents: cents,
@@ -172,6 +198,12 @@ export type CartResult = z.infer<typeof cartResultSchema>;
 // Success payloads contain only the data needed for the named operation. The UI
 // uses its separate, authenticated full-state endpoint instead of this contract.
 export const toolDataSchemas = {
+  find_meal_savings: z
+    .object({
+      proposal: mealSavingsProposalSchema.nullable(),
+      summary,
+    })
+    .strict(),
   get_menu: z.object({ menu, summary }).strict(),
   get_item_details: z.object({ product: productSchema, summary }).strict(),
   compare_menu_prices: z
@@ -286,6 +318,7 @@ function outputSchema<T extends z.ZodType>(data: T) {
     .strict();
 }
 export const toolOutputSchemas = {
+  find_meal_savings: outputSchema(toolDataSchemas.find_meal_savings),
   get_menu: outputSchema(toolDataSchemas.get_menu),
   get_item_details: outputSchema(toolDataSchemas.get_item_details),
   compare_menu_prices: outputSchema(toolDataSchemas.compare_menu_prices),
@@ -299,6 +332,9 @@ export const toolOutputSchemas = {
 };
 
 const recoveryActions: Record<string, Recovery["next_action"]> = {
+  STALE_SAVINGS: "refresh_cart",
+  STALE_RECEIPT: "refresh_cart",
+  UNDO_UNAVAILABLE: "refresh_cart",
   MEAL_SIZE_REQUIRED: "correct_arguments",
   LISTED_MEAL_SIZE: "correct_arguments",
   INCOMPLETE_SELECTION: "correct_arguments",

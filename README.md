@@ -30,9 +30,13 @@ Open [the order board](http://localhost:3100/lane/lane-1). Sign in as **admin** 
 
 Use [Crew](http://localhost:3100/crew) for takeover, validated edits and staff messages; [Menu & staff](http://localhost:3100/admin) for stock, prices and choice limits; [Demo controls](http://localhost:3100/demo) for accept/reject/delay/timeout-after-acceptance. Reset is explicit and scoped to the dedicated fictional dataset. It preserves menu and staff settings.
 
+Draft changes now show a persistent before/after receipt and **Undo last change**. Eligible sandwich + medium fries + drink selections show exact meal savings, applied only when the customer selects **Apply meal savings**. Sizes, quantities and sandwich modifications are preserved; customized drinks/fries remain separate. Try **Can you make this cheaper?** under More example phrases. See [correction receipts and meal savings](docs/draft-improvements.md) for behavior, API contracts and verification boundaries.
+
 ## Verify
 
-Current verification: 68 unit tests, 50 DynamoDB/MCP integration tests and four Chromium browser journeys pass. Lint/typecheck pass. Production web/runtime/worker compilation passed using `pnpm --filter @saygo/web exec next build --webpack` followed by the root `tsup` command. The default Turbopack build failed to bind its CSS-worker port with `EPERM` in this environment; that path is not claimed as passing and the default script is unchanged.
+See [draft feature verification](docs/draft-improvements.md#local-verification) for the correction-receipt and meal-savings checks.
+
+Earlier checkpoint verification: 68 unit tests, 50 DynamoDB/MCP integration tests and four Chromium browser journeys pass. Lint/typecheck pass. Production web/runtime/worker compilation passed using `pnpm --filter @saygo/web exec next build --webpack` followed by the root `tsup` command. The default Turbopack build failed to bind its CSS-worker port with `EPERM` in this environment; that path is not claimed as passing and the default script is unchanged.
 
 ```sh
 pnpm test
@@ -48,7 +52,7 @@ Integration tests use the dedicated local **saygo_test** namespace and bind thei
 
 For isolated software-only browser QA, first migrate/seed DynamoDB Local using `DYNAMODB_ENDPOINT=http://127.0.0.1:8000 DYNAMODB_TABLE=saygo-local DYNAMODB_NAMESPACE=saygo_eval_browser_fix`, then use those same variables plus `SAYGO_QA_WEB_PORT=3122 SAYGO_RUNTIME_PORT=3116 SAYGO_VOICE_ENABLED=false pnpm test:e2e`. This starts its own servers/build directory and refuses reuse of existing servers. Four journeys pass, including synthetic audio capture with an intercepted WebSocket; this is **not** a Sonic test. Lint, strict typecheck and production build also pass.
 
-MCP contract 0.4 has ten tools, including read-only `compare_menu_prices`. Complete hypothetical selections are priced by the same integer-cent engine used for orders. Comparisons default to a nonnegative `amount_cents`; signed later-minus-first changes require `comparison_kind: "signed_change"`. Listed meals must explicitly declare `meal_drink_variant: "medium"`; large drinks require standalone meal conversion. Returned selections echo the drink/size actually priced. This is a breaking change to the 0.3 comparison contract, but the other nine tools remain unchanged. Comparisons never change a cart or create a review, approval or order. Direct clients must send a UUID `request_id` to `prepare_order_review` and decode the strict result envelope. Run `pnpm db:migrate` for DynamoDB table setup; PostgreSQL imports are documented in [DynamoDB migration](docs/dynamodb.md). See [the contract and migration guide](docs/mcp-contracts.md).
+MCP contract 0.5 has eleven tools, adding read-only `find_meal_savings` alongside `compare_menu_prices`. Complete hypothetical selections are priced by the same integer-cent engine used for orders. Comparisons default to a nonnegative `amount_cents`; signed later-minus-first changes require `comparison_kind: "signed_change"`. Listed meals must explicitly declare `meal_drink_variant: "medium"`; large drinks require standalone meal conversion. Returned selections echo the drink/size actually priced. This is a breaking change to the 0.3 comparison contract, but the other nine tools remain unchanged. Comparisons never change a cart or create a review, approval or order. Direct clients must send a UUID `request_id` to `prepare_order_review` and decode the strict result envelope. Run `pnpm db:migrate` for DynamoDB table setup; PostgreSQL imports are documented in [DynamoDB migration](docs/dynamodb.md). See [the contract and migration guide](docs/mcp-contracts.md).
 
 ## AWS database and live-model evaluation
 

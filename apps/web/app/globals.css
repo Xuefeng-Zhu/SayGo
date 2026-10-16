@@ -265,6 +265,103 @@ summary {
   border-bottom: 1px solid var(--rule);
   min-height: 126px;
 }
+.order-line.recently-changed {
+  background: #edf0e6;
+  box-shadow: inset 4px 0 var(--leaf);
+  padding-left: 16px;
+  padding-right: 12px;
+}
+.changed-label,
+.eyebrow {
+  display: block;
+  color: #40573d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.changed-label {
+  margin-bottom: 5px;
+}
+.correction-receipt,
+.meal-savings {
+  margin-top: 26px;
+  padding: 22px;
+  border: 1px solid #b5bfac;
+  border-radius: 10px;
+  background: #f0f2e9;
+  overflow-wrap: anywhere;
+}
+.draft-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.correction-receipt h2,
+.conversation-rail .meal-savings h2 {
+  font-size: 27px;
+  margin-top: 5px;
+}
+.change-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0;
+}
+.change-list li {
+  padding: 9px 0;
+  border-bottom: 1px solid #d4d9cb;
+}
+.change-list strong,
+.change-list span,
+.change-total small {
+  display: block;
+}
+.change-list span {
+  color: #47514a;
+  font-size: 15px;
+}
+.change-total {
+  margin-bottom: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.change-total small {
+  margin-top: 5px;
+  font-weight: 400;
+}
+.savings-groups {
+  padding-left: 20px;
+  font-size: 15px;
+}
+.savings-groups li + li {
+  margin-top: 10px;
+}
+.savings-totals {
+  margin: 20px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.savings-totals div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.savings-totals div:last-child {
+  font-weight: 700;
+}
+.meal-savings .text-button {
+  margin-top: 12px;
+}
+.savings-check {
+  margin-top: 24px;
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+}
+.savings-check p {
+  margin-top: 4px;
+}
 .quantity {
   display: grid;
   place-items: center;

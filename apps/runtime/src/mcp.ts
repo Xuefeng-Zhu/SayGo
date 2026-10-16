@@ -20,6 +20,8 @@ import { getView, tool } from "@saygo/domain";
 import { mcpScope } from "./auth.js";
 import { executionRecovery, inputRecovery, toolData } from "./mcp-results.js";
 const descriptions: Record<ToolName, string> = {
+  find_meal_savings:
+    "Find lower-priced equivalent meal groupings for the CURRENT cart without changing it. Preserves food, sizes and customizations; skips combinations whose modifiers cannot be preserved. Returns exact before/after totals and a proposal or null. Ask the customer to stop voice and use Apply meal savings on the order board to accept. Never recreate the suggestion with apply_cart_changes, approve it yourself, or add items just to obtain a discount. A proposal is not a held quote or order consent.",
   get_menu:
     "Read the current fictional menu, USD-cent prices, availability and allowed choices. Ingredients do not establish allergy safety.",
   get_item_details: "Read one listed product and its required choices.",
@@ -41,6 +43,7 @@ const descriptions: Record<ToolName, string> = {
     "First call proposes resetting the draft and returns reset_token. Do not supply that token yourself; the customer UI confirms reset. Submitted orders require staff.",
 };
 const titles: Record<ToolName, string> = {
+  find_meal_savings: "Find equivalent meal savings",
   get_menu: "Browse menu",
   get_item_details: "Inspect a menu item",
   compare_menu_prices: "Compare hypothetical menu prices",
@@ -54,6 +57,7 @@ const titles: Record<ToolName, string> = {
 };
 const tools = (Object.keys(toolSchemas) as ToolName[]).map((name) => {
   const readOnly = [
+    "find_meal_savings",
     "get_menu",
     "get_item_details",
     "compare_menu_prices",
@@ -117,7 +121,7 @@ export async function handleMcp(req: Request, res: Response) {
   const server = new Server(
     {
       name: "saygo-harbor-burger",
-      version: "0.4.0",
+      version: "0.5.0",
     },
     {
       capabilities: { tools: { listChanged: false } },

@@ -12,18 +12,26 @@ import {
 export function OrderLines({
   lines,
   onEdit,
+  changedLineIds = [],
 }: {
   lines: PricedLine[];
   onEdit?: (line: PricedLine) => void;
+  changedLineIds?: string[];
 }) {
   return (
     <ol className="order-lines" aria-label="Current order">
       {lines.map((line) => (
-        <li key={line.id} className="order-line">
+        <li
+          key={line.id}
+          className={`order-line${changedLineIds.includes(line.id) ? " recently-changed" : ""}`}
+        >
           <span className="quantity" aria-label={`Quantity ${line.quantity}`}>
             {line.quantity}
           </span>
           <div className="line-description">
+            {changedLineIds.includes(line.id) && (
+              <span className="changed-label">Updated</span>
+            )}
             <h3>{line.name}</h3>
             <p
               className={
