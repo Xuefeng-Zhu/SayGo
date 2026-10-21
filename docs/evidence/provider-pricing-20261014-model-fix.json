@@ -1,0 +1,13 @@
+{
+  "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+  "publicationDate": "2026-10-14T03:30:16Z",
+  "region": "us-west-2",
+  "currency": "USD",
+  "unit": "per million tokens",
+  "nova2Lite": {
+    "output": 2.75,
+    "input": 0.33
+  },
+  "invoiceVerified": false,
+  "note": "Public regional catalog rechecked for the signed-comparison fix. Standard Nova 2 Lite rates match the evaluator; this read made no model call."
+}

@@ -1,5 +1,23 @@
 # Evidence-based SDK/setup friction log
 
+## Current contract and recorded evidence
+
+The runtime advertises MCP contract **0.5** and eleven tools, adding read-only `find_meal_savings` alongside `compare_menu_prices`. Its strict per-tool envelopes retain the validation introduced in 0.2; 0.4 additionally requires explicit listed-meal drink size and distinguishes unsigned price gaps from signed changes. The saved [Inspector receipt](evidence/mcp-inspector.json) verified the earlier ten-tool catalog with zero strict schema findings; it does not verify the added tool. See [current contracts](mcp-contracts.md).
+
+Current persistence uses DynamoDB. The [migration receipt](evidence/dynamodb-migration.json) records the preserved PostgreSQL source and verified imported entity contents/counts; the SQL timing fix below describes the earlier PostgreSQL implementation. Current setup is documented in [DynamoDB](dynamodb.md).
+
+The [successful synthetic Sonic receipt](evidence/live-voice-sonic-v4-i-20261014.json) verifies an account-backed Nova 2 Sonic stream, including the stringified tool schemas, through browser capture, authenticated WebSocket, real HTTP MCP and DynamoDB Local. All 16 assertions passed in that development trial. The input was offline TTS through a software MediaStream and Chromium output was muted: physical microphone/speaker behavior, independent spoken-price accuracy and acoustic barge-in remain unverified. The passing trial observed no interruption signals. See [voice evidence and remaining checks](voice.md).
+
+Live failures exposed playback-buffer limits, confusion between explicit edits and hypothetical price questions, invalid model-generated request UUIDs and interruption/content tracking. The resulting fixes and source fingerprints are recorded in [voice verification](voice.md) and its [source manifest](evidence/live-voice-i-source-manifest.json). The passing trial recovered from an invalid UUID and a missing meal size via structured errors; it does not establish general model reliability. Later shared pricing-guidance changes have not been rerun through Sonic.
+
+The text follow-up added explicit subtraction directions and format rules derived solely from each user's requested template. The final [original benchmark](evidence/live-model-evaluation-reasoning-low-8192-run-identity-original-20261014.json) and [additional-question suite](evidence/live-model-evaluation-reasoning-low-8192-run-identity-generalization-20261014.json) each passed 10/10 in complete low-reasoning runs on the same [preserved October 14 implementation](evidence/model-fix-source-manifest-20261014.json), before the contract 0.5 draft improvements. Questions, expected answers and exact scoring were unchanged; earlier truncations and formatting failures remain in [evaluation](evaluation.md). The [verification receipt](evidence/model-fix-verification-20261014.json) records 101 unit and 49 integration passes, with optional Inspector skipped, plus lint/typecheck. These bounded results do not establish broad model reliability.
+
+The earlier recorded production compilation passed with Next.js webpack mode plus runtime/worker compilation. Default Turbopack compilation failed when its CSS worker could not bind a port (`EPERM`), including after an escalated retry. This is a distinct build-path limitation from the historical re-export fix below; no passing default build is claimed. Build and browser checks were not rerun for the text-model follow-up.
+
+## Historical setup observations — October 10, 2026
+
+The observations and unresolved boundaries in this table describe the initial setup checkpoint. Later provider and storage evidence is summarized above; these entries do not describe the current verification state.
+
 | Observed issue                                                                                                     | Resolution / boundary                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | The MCP-builder skill's referenced local `reference/` files were missing.                                          | Read the installed official SDK's stateless server example/types and public SDK documentation instead. No protocol API was invented.                                                 |
@@ -14,7 +32,7 @@
 
 This log records actual setup/integration observations. It contains no invented AWS errors or undocumented partner SDK feedback, and no secrets or raw customer speech.
 
-## MCP contract 0.2 follow-up
+## Historical MCP contract 0.2 follow-up — October 10, 2026
 
 The later [guide review](mcp-best-practices-review.md) found that the installed v1 SDK still accepts JSON-RPC batches. The local 2025-11-25 endpoint now rejects these before domain work. Zod input-mode schema generation also corrected optional default fields in discovery. A raw Node HTTP request was required for the wrong-Host regression because fetch replaced the supplied Host header. Inspector 2.10.1 passed using its legacy protocol mode; no SDK major-version upgrade was implied.
 

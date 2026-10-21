@@ -1,6 +1,51 @@
 # Evaluation and evidence
 
-## Signed-in live follow-up — October 14, 2026
+## Reading this evidence
+
+The sections below are dated checkpoints. Older PostgreSQL, tool-count, test-count, provider and publication statements describe their checkpoint only. The newest live text-model verification is the final October 14 follow-up below (October 15 UTC). The October 20 publication checks verify the model fixes together with the subsequently committed draft-order features locally.
+
+## Pre-publication local checks — October 20, 2026
+
+The model fixes were checked on top of `118eef4`, which adds correction receipts and equivalent meal savings under MCP contract 0.5 with eleven tools. **124 unit tests and 61 DynamoDB/HTTP MCP integration tests passed**, with one optional Inspector check skipped. Lint and strict typecheck passed. No provider calls were made, and browser/build/Sonic checks were not rerun. The temporary in-memory database stopped and ports 8000/3111 were released. [Local-check receipt and source hashes](evidence/model-fix-prepush-20261020.json).
+
+The original and generalization 10/10 live results below remain tied to their preserved October 14 source snapshot. These fresh local checks establish compatibility with the committed draft-order features; they do not extend the historical live-model results to a different implementation hash.
+
+## Final text-model fix — October 14, 2026
+
+Both unchanged full suites passed using **Nova 2 Lite, low reasoning, 8,192 output tokens**. The final runs have identical implementation hash `2d37601d82db48c688dc77c3e3a2b86bcd20b4ab695a3be70be1c1fdb20ceffa`, checked against the source after both runs. Each question used a fresh conversation and real read-only MCP calls against isolated DynamoDB Local data. All 20 final trials preserved database fingerprints, and both temporary evaluation namespaces were cleaned. Per-trial configuration hashes include the question-derived template guidance, so they intentionally differ between questions.
+
+Concurrent draft-order feature edits appeared in the shared checkout after that source check. They were preserved and are outside these test results. The [tested-source manifest](evidence/model-fix-source-manifest-20261014.json) and [source patch](evidence/model-fix-tested-source-20261014.patch), applied to the recorded base commit, reproduce every file in the verified implementation hash. The model-fix source files themselves were unchanged when this later drift was recorded.
+
+| Final full suite     | Exact score | Model calls | Estimated run cost | Evidence                                                                                                             |
+| -------------------- | ----------: | ----------: | -----------------: | -------------------------------------------------------------------------------------------------------------------- |
+| Original             |       10/10 |          24 |       $0.083288590 | [Original report](evidence/live-model-evaluation-reasoning-low-8192-run-identity-original-20261014.json)             |
+| Additional questions |       10/10 |          27 |       $0.103510110 | [Generalization report](evidence/live-model-evaluation-reasoning-low-8192-run-identity-generalization-20261014.json) |
+
+The fixes make signed tool summaries name both subtraction directions, preserve product identity across before/after comparisons, and derive field-format instructions solely from the question's explicit `Return` template. Numeric tool fields, schemas, all questions/expected answers, exact scoring and budget guards are unchanged. No expected values or verifier feedback enter model input; final output is trimmed only, with no repair or failed-answer retries. Truncation remains a failure and now receives a specific sanitized diagnostic. [Implementation and regression details](model-improvements.md).
+
+The development sequence is retained separately; its earlier failures are not merged into the final scores:
+
+| Development run                                               | Outcome                                          | Estimated cost | Evidence                                                                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------ | -------------: | ----------------------------------------------------------------------------------------------------------------- |
+| Signed arithmetic probe, medium reasoning                     | Focused 1/1; `700\|650\|50`                      |   $0.034632510 | [Probe](evidence/live-model-evaluation-reasoning-medium-8192-run-direction-probe-20261014.json)                   |
+| Full additional questions, medium reasoning                   | 9/10; extra header row                           |   $0.188087020 | [Header failure](evidence/live-model-evaluation-reasoning-medium-8192-run-direction-generalization-20261014.json) |
+| Full original, medium reasoning                               | 9/10; unwanted field-name prefix                 |   $0.204472070 | [Prefix failure](evidence/live-model-evaluation-reasoning-medium-8192-run-direction-original-final-20261014.json) |
+| Full original with template helper, low reasoning             | 10/10                                            |   $0.083601320 | [Template original](evidence/live-model-evaluation-reasoning-low-8192-run-template-original-20261014.json)        |
+| Full additional questions with template helper, low reasoning | 9/10; wrong baseline product for chicken removal |   $0.100681020 | [Identity failure](evidence/live-model-evaluation-reasoning-low-8192-run-template-generalization-20261014.json)   |
+
+During this follow-up, **101 unit tests and 49 DynamoDB/HTTP MCP integration tests passed**, with one optional Inspector test skipped; lint and strict typecheck passed. After the last guidance-only edit, 39 focused tests and both full live suites passed. Browser, production build, Inspector and Sonic checks were not rerun. The saved Sonic trial below predates the shared guidance and signed-summary changes.
+
+The two text-only approvals totaled **$1.50**. Reported usage totals **$0.798272640**, with **$0 pending** in those ledgers. The old approval's $0.25 unknown voice-outcome reservation remains separate and unchanged. Rates were rechecked against the October 14 AWS regional catalog; these are token-based estimates, not invoice verification or a billing-enforced cap. Paid testing stopped; the owned in-memory DynamoDB process stopped and ports 8000/3113 were verified released. [Consolidated verification, checks, unchanged-file hashes and budget receipt](evidence/model-fix-verification-20261014.json).
+
+These are two bounded development runs, not a statistical reliability estimate. The additional questions have informed the fixes and are no longer an unseen holdout. Full-suite success resolves the recorded text cases; physical speech, production acceptance and broader model reliability remain separate validation work.
+
+## Recorded local demo — October 14, 2026
+
+The [preserved recording receipt](evidence/demo-recording-20261014.json) documents a 156.159-second, 1920×1080 captioned MP4 from source `2d8b000`. Scripted inputs traversed real MCP, isolated in-memory DynamoDB Local and the local POS sandbox; narration used offline macOS TTS. It verified the $18.09 correction, customer review/confirmation, accepted kitchen ticket, next-customer isolation and staff takeover. The recording made zero provider calls and used no physical microphone or speakers. Full media decode, H.264/AAC, embedded English captions and reviewed frames are recorded in the original receipt; the file's metadata and hash were checked during this documentation update.
+
+The video describes the separate synthetic Sonic trial below. It does not show live acoustic speech or establish spoken-price accuracy. It remains local and unpublished; [recording location and submission handoff](demo-and-submission.md). The original media and receipt in `output/` were preserved.
+
+## Earlier signed-in live checkpoint — October 14, 2026
 
 The existing AWS test profile was signed in locally. Bedrock Sonic authorization/region availability and actual bidirectional stream acceptance passed. No credential values or account identifiers were retained in evaluation evidence. All provider trials used isolated DynamoDB Local data, not the normal AWS demo. Original questions, expected answers and exact scoring remain unchanged; earlier failures and partial runs are preserved.
 
@@ -18,15 +63,15 @@ The successful voice flow used offline TTS, a verified software MediaStream over
 
 Live failures informed fixes for faster-than-real-time playback (still bounded to 30 seconds/512 sources), direct edits versus price inquiries, valid request-UUID recovery, and new-content audio resumption after interruption. The MCP-builder and frontend-debugging guides informed actionable errors, strict contracts, preserved failure evidence and rendered validation. [Voice details](voice.md), [source manifest](evidence/live-voice-i-source-manifest.json), [usage reconciliation](evidence/provider-budget-reconciliation-20261014.json).
 
-Current verification: **68 unit, 50 DynamoDB/MCP/Inspector integration and 4 Chromium browser tests pass**. Lint, strict typecheck and whitespace checks pass. The optimized Next.js production build passes using supported webpack mode, and runtime/worker compilation passes. The default Turbopack build repeatedly failed because its CSS worker could not bind a port (`EPERM`), including after an escalated retry; this is preserved as an environment/build-path limitation, not reported as a passing default build. No source dependency/bundler default was changed.
+Verification at this earlier checkpoint: **68 unit, 50 DynamoDB/MCP/Inspector integration and 4 Chromium browser tests pass**. Lint, strict typecheck and whitespace checks pass. The optimized Next.js production build passes using supported webpack mode, and runtime/worker compilation passes. The default Turbopack build repeatedly failed because its CSS worker could not bind a port (`EPERM`), including after an escalated retry; this is preserved as an environment/build-path limitation, not reported as a passing default build. No source dependency/bundler default was changed.
 
 Frontend QA used `http://localhost:3120/lane/lane-1`, Chromium 1536×1024, and the existing Playwright workflow because the Browser plugin/skill was unavailable. Page identity, meaningful content, no framework overlay, zero relevant console/page errors, rendered screenshot and voice/staff interaction checks passed. Screenshots are outside the repo in the receipt's `visualDirectory`; browser regression screenshots are under `/private/tmp/saygo-frontend-qa-Z2N1KE`.
 
 The newly approved $1 uses a durable shared text/voice ledger and application-level reservation guards, separate from historical $0.786320 usage. An uncertain early voice attempt retains $0.25 rather than being silently discarded. [Current verified rates](evidence/provider-pricing-20261013.json) are unchanged. Usage-based estimates are not an invoice or a provider-enforced billing cap. At the verification checkpoint, changes remained local; publication follows the owner's separate push request. No deployment or PR was performed.
 
-### Closing budget and unresolved case
+### Prior approval closure and then-unresolved case
 
-The final [focused signed-arithmetic probe](evidence/live-model-evaluation-reasoning-medium-8192-run-menu-v4-arithmetic-target-20261014.json) also exhausted 8,192 output tokens without a final answer, at an estimated $0.059614. The operand-order clarification does not establish a fix for this truncation. This case remains unresolved; no partial or focused results were combined into a complete score.
+The final [focused signed-arithmetic probe](evidence/live-model-evaluation-reasoning-medium-8192-run-menu-v4-arithmetic-target-20261014.json) also exhausted 8,192 output tokens without a final answer, at an estimated $0.059614. The operand-order clarification did not establish a fix at this checkpoint. The later final text-model section above records its resolution; no partial or focused results were combined into a complete score.
 
 Paid testing stopped with **$0.484806577 observed additional usage**, **$0.25 held for the uncertain early voice attempt**, and **$0.734806577 accounted against the newly approved $1**. Historical $0.78631971 is separate. [Closing receipt](evidence/provider-budget-close-20261014.json). No invoice was checked. The temporary database and all owned QA listeners were stopped; owned browser-QA entities were removed and can be regenerated by seeding. Normal demo records and persistent database files were preserved. Its health check returned healthy with `voice:false`; live voice was not persistently enabled. Source changes were local and uncommitted at this verification checkpoint.
 
@@ -149,7 +194,7 @@ The [saved observation](evidence/local-timings.json) was recorded at **2026-10-1
 
 These are **one local sample**, not percentiles, SLAs, model latency or a throughput benchmark. Browser observations include assertion/polling overhead. The MCP duration excludes initial connection/tool discovery and the fixture's preceding `get_cart` call. No audio end-of-utterance → first response measurement is reported because no live microphone/provider session occurred. Implemented transcript/audio timing hooks still require validation against real audio timestamps.
 
-## Browser and visual evidence
+## Historical browser and visual evidence — October 10, 2026
 
 The in-app browser was used first for the actual local workflow. Playwright then checked it repeatably in Chromium, with reduced motion for stable captures. The primary path reported no uncaught page errors. Desktop, tablet landscape and mobile crew/kitchen screenshots were opened and inspected; tablet/mobile checks also assert no horizontal overflow.
 
@@ -163,10 +208,11 @@ The final browser pass also checks that an invalidated quote no longer leaves st
 
 ## Remaining validation and operating limits
 
-- **Live speech:** no Nova 2 Sonic speech invocation, real microphone, speaker echo, noise fixtures, acoustic interruptions or spoken-price correctness verified. See [voice lifecycle](voice.md). Enabling provider calls requires the owner's AWS setup and authorization for associated charges.
+- **Live speech:** one synthetic-input invocation through real Sonic passed 16 checks before the latest shared pricing-guidance and signed-summary changes. Sonic was not rerun for this text-only follow-up. Physical microphones/speakers, echo, noisy input, acoustic interruptions and independent spoken-price correctness remain unverified; the passing run observed no interruption signals. See [voice lifecycle](voice.md). Hardware trials and further paid calls require the appropriate authorized scope and spending limit.
+- **Text model:** both final unchanged full suites passed 10/10 on matching implementation hashes. Earlier failures remain preserved. These development questions are not an unseen holdout, and one complete pass per suite does not establish general reliability.
 - **Native Alexa+:** no partner tooling, native registration, certification, commercial shared-device isolation or Alexa conversation-history control. See [integration boundaries and future SPI mapping](integrations.md).
 - **Production:** the DynamoDB table is provisioned, but there is no application hosting, real restaurant orders, payment capture, commercial POS/intercom integration or hardware testing. Loopback-only demo credentials are intentionally unsuitable for shared hosting.
 - **Reliability/security:** concurrency, durable leases and timeout reconciliation are locally tested; sustained load, process/crash soak, network partitions, backup/restore, browser matrix and independent security review remain future work.
-- **Submission:** demo script and draft copy are provided, not a recorded video or submitted entry. User-controlled eligibility, publishing, terms and final submission gates remain open.
+- **Submission:** a local 2:36 demo, portable recording receipt and draft copy are prepared. The video is not uploaded, and no submitted entry is evidenced. Current rules, eligibility, repository/license access, final claims, publishing and terms remain participant-controlled steps.
 
-The usable handoff is the tested local no-key ordering slice plus implemented-but-unverified live speech adapter, not a claim that every external integration is complete.
+The usable handoff includes the tested no-key ordering flow, bounded AWS persistence evidence, two passing full text benchmarks, the earlier synthetic-input Sonic trial and the recorded fixture demo. Sonic revalidation after the shared guidance changes, physical speech acceptance and broader external integrations remain open.

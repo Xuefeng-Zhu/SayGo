@@ -1,0 +1,108 @@
+{
+  "createdAt": "2026-10-14T07:53:54.566Z",
+  "sourceCommit": "2d8b000d39884cd72072a46e3bada18b58f8614c",
+  "durationSeconds": 156.159333,
+  "resolution": "1920x1080",
+  "providerCalls": 0,
+  "physicalMicrophone": false,
+  "physicalSpeakers": false,
+  "mode": "scripted fixtures over real MCP; isolated in-memory DynamoDB Local; local POS sandbox",
+  "narration": "offline macOS Samantha",
+  "assertions": [
+    "Live provider voice disabled",
+    "Three canonical order lines",
+    "Corrected canonical total $18.09",
+    "Correction preserves the three existing lines",
+    "Explicit customer confirmation enabled only after review",
+    "Sandbox accepted order and returned its number",
+    "Kitchen receives exact modifications and drink size",
+    "Kitchen ticket reaches ready",
+    "Next customer gets an empty cart",
+    "Kitchen persistence endpoint succeeds",
+    "Previous kitchen ticket survives next-customer transition",
+    "Staff takeover pauses automated ordering",
+    "Staff takeover preserves the cart",
+    "No unexpected browser page or console errors"
+  ],
+  "browserErrors": [],
+  "expectedSessionTransitionResponses": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "url": "http://localhost:3126/api/lane/state",
+      "phase": "reset"
+    }
+  ],
+  "scenes": [
+    {
+      "id": "intro",
+      "title": "Say it. See it. Go.",
+      "startSeconds": 0,
+      "durationSeconds": 15.3
+    },
+    {
+      "id": "order",
+      "title": "01 / Make the order visible",
+      "startSeconds": 15.3,
+      "durationSeconds": 17.400735041999997
+    },
+    {
+      "id": "correction",
+      "title": "02 / Change exactly the intended item",
+      "startSeconds": 32.700735042,
+      "durationSeconds": 16.60142229099999
+    },
+    {
+      "id": "review",
+      "title": "03 / Separate conversation from consent",
+      "startSeconds": 49.30215733299999,
+      "durationSeconds": 14.900917874999998
+    },
+    {
+      "id": "accepted",
+      "title": "04 / Confirm once, then acknowledge",
+      "startSeconds": 64.20307520799999,
+      "durationSeconds": 14.801139083999999
+    },
+    {
+      "id": "kitchen",
+      "title": "05 / Send the same details to the kitchen",
+      "startSeconds": 79.00421429199999,
+      "durationSeconds": 15.400842291000004
+    },
+    {
+      "id": "reset",
+      "title": "06 / Start fresh without losing the ticket",
+      "startSeconds": 94.40505658299999,
+      "durationSeconds": 13.200002249999997
+    },
+    {
+      "id": "staff",
+      "title": "07 / Keep a human in control",
+      "startSeconds": 107.60505883299999,
+      "durationSeconds": 17.200782875
+    },
+    {
+      "id": "evidence",
+      "title": "Voice: tested separately",
+      "startSeconds": 124.80584170799999,
+      "durationSeconds": 19.2
+    },
+    {
+      "id": "outro",
+      "title": "SayGo",
+      "startSeconds": 144.005841708,
+      "durationSeconds": 12.1
+    }
+  ],
+  "historicalVoiceEvidence": "docs/evidence/live-voice-sonic-v4-i-20261014.json",
+  "mediaValidation": {
+    "fullVideoAndAudioDecodePassed": true,
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "embeddedEnglishCaptions": true,
+    "visuallyReviewedFrameSeconds": [1, 42, 127]
+  },
+  "temporaryListenersStopped": true,
+  "automaticNextConfigEditsRestored": true,
+  "uploadedOrPublished": false
+}

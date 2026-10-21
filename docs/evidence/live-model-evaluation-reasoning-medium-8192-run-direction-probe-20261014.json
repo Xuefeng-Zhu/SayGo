@@ -1,0 +1,136 @@
+{
+  "at": "2026-10-15T05:38:33.946Z",
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "DynamoDB Local",
+  "menuHash": "2d1b4590c82d716ab3fddb4957b55ea22e0db71e86563fa5a9b1614859f3def1",
+  "implementationHash": "6488d40fab6e7ba40d184ae535b88c9a416e56a35b8aa8b0e1d4d0a9c564ff6e",
+  "completed": true,
+  "trialCount": 1,
+  "passed": 1,
+  "maximumApprovedUsd": 1,
+  "additionalApproval": {
+    "approvalId": "model-direction-20261014",
+    "maximumAdditionalUsd": 1,
+    "startedAt": "2026-10-15T05:34:24.322Z",
+    "priorHistoricalEstimateUsd": 1.271126287,
+    "observedUsd": 0.03463251,
+    "pending": {}
+  },
+  "reasoning": "medium",
+  "suite": "generalization",
+  "selectedIds": [
+    "fresh-two-size-tradeoff"
+  ],
+  "fullSuite": false,
+  "scoring": "Exact raw trimmed answer equality; no repair, sign changes, normalization, or oracle feedback.",
+  "runId": "direction-probe-20261014",
+  "priorEstimatedUsd": 1.2227804599999998,
+  "cumulativeEstimatedUsd": 1.2574129699999999,
+  "inputTokens": 12972,
+  "outputTokens": 11037,
+  "modelCalls": 3,
+  "estimatedUsd": 0.03463251,
+  "reservedUpperEstimateUsd": 0.03463251000000001,
+  "pricing": {
+    "inputUsdPerMillion": 0.33,
+    "outputUsdPerMillion": 2.75,
+    "source": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json",
+    "publicationDate": "2026-10-14T03:30:16Z",
+    "invoiceVerified": false
+  },
+  "limits": {
+    "maximumTurnsPerQuestion": 8,
+    "maximumOutputTokens": 8192,
+    "readonlyTools": [
+      "get_menu",
+      "get_item_details",
+      "compare_menu_prices"
+    ],
+    "providerAutomaticRetries": 0,
+    "countTokensUnavailable": true,
+    "inputEstimate": "2 tokens per JSON byte plus 8192 framing tokens; 25% budget reserve"
+  },
+  "temporaryDataCleaned": true,
+  "trials": [
+    {
+      "id": "fresh-two-size-tradeoff",
+      "question": "In Harbor Burger v1, compare small lemonade plus large fries with large lemonade plus small fries. No meal discount or tax. Return first_cents|second_cents|first_minus_second_cents.",
+      "expected": "700|650|50",
+      "actual": "700|650|50",
+      "pass": true,
+      "readOnlyStatePreserved": true,
+      "toolCalls": [
+        {
+          "name": "get_menu",
+          "args": {},
+          "resultHash": "f52b5f1d202c058f2405f9c62ef282e84df9c75d4ec394adfb85ddb3927eebfc",
+          "ms": 54,
+          "isError": false
+        },
+        {
+          "name": "compare_menu_prices",
+          "args": {
+            "options": [
+              {
+                "label": "first",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "small"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "large"
+                  }
+                ]
+              },
+              {
+                "label": "second",
+                "selections": [
+                  {
+                    "product_id": "lemonade",
+                    "variant": "large"
+                  },
+                  {
+                    "product_id": "fries",
+                    "variant": "small"
+                  }
+                ]
+              }
+            ],
+            "comparison_kind": "signed_change"
+          },
+          "resultHash": "64da3ed2e0dc2acf253a09447f9fa84fa2a53d1470e53ada8e61c88df042eef4",
+          "ms": 57,
+          "isError": false
+        }
+      ],
+      "modelCalls": [
+        {
+          "inputTokens": 2507,
+          "outputTokens": 3771,
+          "ms": 18888,
+          "stopReason": "tool_use",
+          "requestId": "58986ea0-3d8a-4a4e-85bd-4ca1e1ebb5ac"
+        },
+        {
+          "inputTokens": 4964,
+          "outputTokens": 6849,
+          "ms": 36060,
+          "stopReason": "tool_use",
+          "requestId": "75a2b0b4-b2a5-42f2-8244-1b8aa9dcb196"
+        },
+        {
+          "inputTokens": 5501,
+          "outputTokens": 417,
+          "ms": 3452,
+          "stopReason": "end_turn",
+          "requestId": "93607bd5-b2d9-47e6-bcf3-f0c1ce0b3122"
+        }
+      ],
+      "elapsedMs": 58700,
+      "agentConfigurationHash": "af3b8ffb0c854de11aed0dbaad78666f505bb77ca59b2ff90d92499e4c0edf03"
+    }
+  ]
+}

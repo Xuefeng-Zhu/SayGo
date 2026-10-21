@@ -2,6 +2,8 @@
 
 Status: the [synthetic Sonic run](evidence/live-voice-sonic-v4-i-20261014.json) passed on October 14, 2026 after local AWS sign-in. Offline macOS TTS traversed real browser capture, authenticated WebSocket, Bedrock Sonic, HTTP MCP, DynamoDB Local and response playback. All 16 checks passed: direct large-drink correction with stable line IDs, exact $9.50 subtotal/$10.26 fixture total, final 50-cent comparison caption, nonempty provider PCM, review blocking, staff shutdown, lease cleanup and no approval/order submission. **No physical microphone, speaker, noisy outdoor audio or independent acoustic price assessment was tested.** One successful development trial is not a reliability estimate. Earlier failures are preserved.
 
+The saved receipt and its [source manifest](evidence/live-voice-i-source-manifest.json) predate the later October 14 text-only model follow-up. Shared price guidance now preserves product identity across before/after modifications and selects signed subtraction by operand labels. The comparison summary now supplies both labeled subtraction directions; that follow-up left the comparison's numeric fields and schemas unchanged. The current contract 0.5 also adds `find_meal_savings`; the saved Sonic trial predates that tool. These changes reach the voice adapter through its shared guidance and MCP results, but **Sonic was not rerun during this text-only follow-up**. The earlier pass remains evidence for the recorded implementation, not verification of the changed voice behavior. Physical voice remains unverified. See [current text evaluation](evaluation.md).
+
 ## Implemented path
 
 1. A user gesture requests mono microphone access. AudioWorklet accumulates/resamples browser input to 16 kHz signed PCM, emitting 512-sample (32 ms) frames. The browser checks its WebSocket send buffer; overload stops capture instead of dropping an unbounded backlog.
@@ -14,6 +16,7 @@ Status: the [synthetic Sonic run](evidence/live-voice-sonic-v4-i-20261014.json) 
 
 ## Verification still required
 
+- Revalidate Sonic with the changed shared price guidance and signed-comparison summaries; the saved successful stream predates those changes.
 - Revalidation across other accounts/regions and sustained sessions; configured account/region and actual stream acceptance passed in this bounded trial.
 - Live duplex audio framing/resampling across Safari/Chrome/hardware, permission denial, disconnect/reconnect and echo behavior.
 - Response audio latency, provider interruption signal ordering, late generation suppression under network delay, model/tool accuracy and spoken quote accuracy.

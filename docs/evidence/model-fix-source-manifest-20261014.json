@@ -1,0 +1,59 @@
+{
+  "at": "2026-10-15T06:10:47.299Z",
+  "baseCommit": "2d8b000d39884cd72072a46e3bada18b58f8614c",
+  "implementationHash": "2d37601d82db48c688dc77c3e3a2b86bcd20b4ab695a3be70be1c1fdb20ceffa",
+  "sourceHashMatchedWorkingTreeAfterBothRuns": true,
+  "files": [
+    {
+      "path": "packages/domain/src/menu-prices.ts",
+      "sha256": "5381ba1e15628075e5b6549ec30a267b1d53cbe9c5c345b843126fd99717f114",
+      "source": "model-fix-tested-source-20261014.patch"
+    },
+    {
+      "path": "packages/integrations/src/menu-guidance.ts",
+      "sha256": "abe168d21f11859743c862e4da79c9c72a27639ab0908f8e1c2b7bb6b1ecec0d",
+      "source": "model-fix-tested-source-20261014.patch"
+    },
+    {
+      "path": "packages/integrations/src/answer-template.ts",
+      "sha256": "ce3630c9284ef8e8609c9f54f803ace9029b41fa622d4e4cb724b8f3f76d8fc7",
+      "source": "model-fix-tested-source-20261014.patch"
+    },
+    {
+      "path": "tests/live-model-evaluation.ts",
+      "sha256": "8eb822a3ba3d4793ecd2bae09997a39c2384b48f1ac68cc50a6e0ec0054be804",
+      "source": "model-fix-tested-source-20261014.patch"
+    },
+    {
+      "path": "tests/live-model-response.ts",
+      "sha256": "dfabb3cc92d6d3765070752b5e7aea02abda105746f23321485760e1e3727874",
+      "source": "model-fix-tested-source-20261014.patch"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "4af81f714892d1355b73fac2288f6c584d9aa250252eab6cf966ab286e76df55",
+      "source": "2d8b000d39884cd72072a46e3bada18b58f8614c"
+    },
+    {
+      "path": "packages/contracts/src/mcp.ts",
+      "sha256": "b130e9bfd096c78c189c9c98d9660bb9739ca07035beb551f273881d0ff2b1f1",
+      "source": "2d8b000d39884cd72072a46e3bada18b58f8614c"
+    },
+    {
+      "path": "apps/runtime/src/mcp.ts",
+      "sha256": "a5f9e37cf637bf686c63a36eaa0c2bfa0b4d5be654084a8734c6f3b13b7fc399",
+      "source": "2d8b000d39884cd72072a46e3bada18b58f8614c"
+    }
+  ],
+  "subsequentWorkspaceChanges": {
+    "detectedAt": "2026-10-15T06:10:47.300Z",
+    "hashedFilesChanged": [
+      "packages/contracts/src/index.ts",
+      "packages/contracts/src/mcp.ts",
+      "apps/runtime/src/mcp.ts"
+    ],
+    "verifiedModelFixFilesUnchanged": true,
+    "note": "Concurrent draft-order feature changes appeared after the final source hash was validated. They were preserved and are outside these benchmark and local-test receipts."
+  },
+  "patchReconstructionVerified": true
+}

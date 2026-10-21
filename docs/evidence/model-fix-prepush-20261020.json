@@ -1,0 +1,94 @@
+{
+  "at": "2026-10-21T05:45:10.343Z",
+  "localDate": "2026-10-20",
+  "purpose": "Local regression verification before publishing model fixes on top of the separately committed correction-receipt and meal-savings features.",
+  "baseCommit": "118eef4ea87ee79aa8e4af820a0a7498d1d29717",
+  "contractVersion": "0.5",
+  "discoveredToolCount": 11,
+  "currentImplementationHash": "e55cc417dbe12d8b75ccb1174e7791652983d2df9ab190eee3891fead92013df",
+  "sourceFiles": [
+    {
+      "path": "packages/domain/src/menu-prices.ts",
+      "sha256": "5381ba1e15628075e5b6549ec30a267b1d53cbe9c5c345b843126fd99717f114"
+    },
+    {
+      "path": "packages/integrations/src/menu-guidance.ts",
+      "sha256": "abe168d21f11859743c862e4da79c9c72a27639ab0908f8e1c2b7bb6b1ecec0d"
+    },
+    {
+      "path": "packages/integrations/src/answer-template.ts",
+      "sha256": "ce3630c9284ef8e8609c9f54f803ace9029b41fa622d4e4cb724b8f3f76d8fc7"
+    },
+    {
+      "path": "tests/live-model-evaluation.ts",
+      "sha256": "8eb822a3ba3d4793ecd2bae09997a39c2384b48f1ac68cc50a6e0ec0054be804"
+    },
+    {
+      "path": "tests/live-model-response.ts",
+      "sha256": "dfabb3cc92d6d3765070752b5e7aea02abda105746f23321485760e1e3727874"
+    },
+    {
+      "path": "tests/integration/ordering.test.ts",
+      "sha256": "8b6959b33b762d01700758ed2c2e4d869d32997a3c6f3ca0d07bad6059f315f2"
+    },
+    {
+      "path": "tests/unit/menu-prices.test.ts",
+      "sha256": "1e6d430800625eda9711a8c80d5d80f378c0ca09b626e379f291ba529458baef"
+    },
+    {
+      "path": "tests/unit/answer-template.test.ts",
+      "sha256": "ce0bf8ce52912cbf0083c42263e72981b8f73191f38f5dab4f75acf3bcd067ea"
+    },
+    {
+      "path": "tests/unit/live-model-response.test.ts",
+      "sha256": "6b53780949638fe24602a7806343ca23d83162a9663096a58cac6445416dd1f9"
+    }
+  ],
+  "checks": {
+    "unit": {
+      "command": "pnpm test",
+      "passed": 124,
+      "files": 13
+    },
+    "integration": {
+      "command": "DYNAMODB_ENDPOINT=http://127.0.0.1:8000 DYNAMODB_TABLE=saygo-local DYNAMODB_NAMESPACE=saygo_test SAYGO_RUNTIME_PORT=3111 SAYGO_DEMO=true SAYGO_VOICE_ENABLED=false pnpm test:integration",
+      "passed": 61,
+      "skipped": 1,
+      "files": 2,
+      "skippedCheck": "Optional MCP Inspector not enabled"
+    },
+    "lint": {
+      "command": "pnpm lint",
+      "passed": true
+    },
+    "typecheck": {
+      "command": "pnpm typecheck",
+      "passed": true
+    }
+  },
+  "providerCalls": 0,
+  "additionalProviderSpendUsd": 0,
+  "historicalLiveEvidence": {
+    "manifest": "model-fix-source-manifest-20261014.json",
+    "implementationHash": "2d37601d82db48c688dc77c3e3a2b86bcd20b4ab695a3be70be1c1fdb20ceffa",
+    "reconstructedFromRecordedBaseAndPatch": true,
+    "originalScore": "10/10",
+    "generalizationScore": "10/10",
+    "note": "The October14 live results apply to the preserved source snapshot. Current contract0.5 code received local regression checks only; live suites and Sonic were not rerun."
+  },
+  "environmentSetupNote": "The initial sandbox blocked tsx IPC and database socket binding. The authorized local-only checks completed after starting the temporary database outside that sandbox.",
+  "cleanup": {
+    "ownedInMemoryDatabaseStopped": true,
+    "portsVerifiedReleased": [8000, 3111],
+    "persistentDatabaseFilesPreserved": true
+  },
+  "notRerun": [
+    "paid text-model suites",
+    "Nova Sonic",
+    "physical microphone/speaker tests",
+    "browser journeys",
+    "production build",
+    "MCP Inspector"
+  ],
+  "sourceCommit": "30bd1825a2e9b095f5e448587cfa2779b4ab7b63"
+}

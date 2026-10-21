@@ -1,0 +1,190 @@
+{
+  "at": "2026-10-15T06:07:19.265Z",
+  "localDate": "2026-10-14",
+  "purpose": "Final text-only verification of signed comparison, response formatting and same-product baseline guidance.",
+  "baseCommit": "2d8b000d39884cd72072a46e3bada18b58f8614c",
+  "changesPublished": false,
+  "modelId": "us.amazon.nova-2-lite-v1:0",
+  "region": "us-west-2",
+  "database": "Isolated namespaces in an owned in-memory DynamoDB Local instance",
+  "reasoning": "low",
+  "maximumOutputTokens": 8192,
+  "implementationHash": "2d37601d82db48c688dc77c3e3a2b86bcd20b4ab695a3be70be1c1fdb20ceffa",
+  "scoring": "Unchanged exact raw trimmed answer equality; no oracle feedback, answer repair, failed-answer retry or combined partial-suite score.",
+  "configurationHashNote": "Per-trial agentConfigurationHash includes formatting guidance derived only from that question. Implementation hashes match across both final suites.",
+  "finalRuns": [
+    {
+      "evidence": "live-model-evaluation-reasoning-low-8192-run-identity-original-20261014.json",
+      "suite": "original",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 10,
+      "trials": 10,
+      "readOnlyStatePreserved": 10,
+      "temporaryDataCleaned": true,
+      "modelCalls": 24,
+      "inputTokens": 103348,
+      "outputTokens": 17885,
+      "estimatedUsd": 0.08328859
+    },
+    {
+      "evidence": "live-model-evaluation-reasoning-low-8192-run-identity-generalization-20261014.json",
+      "suite": "generalization",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 10,
+      "trials": 10,
+      "readOnlyStatePreserved": 10,
+      "temporaryDataCleaned": true,
+      "modelCalls": 27,
+      "inputTokens": 120692,
+      "outputTokens": 23157,
+      "estimatedUsd": 0.10351011
+    }
+  ],
+  "developmentRuns": [
+    {
+      "evidence": "live-model-evaluation-reasoning-medium-8192-run-direction-probe-20261014.json",
+      "completed": true,
+      "fullSuite": false,
+      "passed": 1,
+      "trials": 1,
+      "estimatedUsd": 0.03463251,
+      "failedIds": []
+    },
+    {
+      "evidence": "live-model-evaluation-reasoning-medium-8192-run-direction-generalization-20261014.json",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 9,
+      "trials": 10,
+      "estimatedUsd": 0.18808702,
+      "failedIds": ["fresh-two-cheapest-sizes"]
+    },
+    {
+      "evidence": "live-model-evaluation-reasoning-medium-8192-run-direction-original-final-20261014.json",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 9,
+      "trials": 10,
+      "estimatedUsd": 0.20447207,
+      "failedIds": ["allowed-removal"]
+    },
+    {
+      "evidence": "live-model-evaluation-reasoning-low-8192-run-template-original-20261014.json",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 10,
+      "trials": 10,
+      "estimatedUsd": 0.08360132,
+      "failedIds": []
+    },
+    {
+      "evidence": "live-model-evaluation-reasoning-low-8192-run-template-generalization-20261014.json",
+      "completed": true,
+      "fullSuite": true,
+      "passed": 9,
+      "trials": 10,
+      "estimatedUsd": 0.10068102,
+      "failedIds": ["fresh-chicken-no-lettuce"]
+    }
+  ],
+  "unchangedBenchmarkAndBudgetFiles": [
+    {
+      "path": "tests/mcp-evaluation.xml",
+      "unchangedFromHead": true,
+      "sha256": "f24ddf038ad259564bd170a0422e4f7d3a4a7c9f9f6879faf3e45b9ec505068e"
+    },
+    {
+      "path": "tests/mcp-evaluations.ts",
+      "unchangedFromHead": true,
+      "sha256": "3a8de49a7f207bf076429a54997b057a6211e5cc6e29ecfb1c27a6a93c9e92a1"
+    },
+    {
+      "path": "tests/menu-generalization-evaluations.ts",
+      "unchangedFromHead": true,
+      "sha256": "16e912dcea6c210187ec628ad05e70b09068afc6ef47262454647f3f536bf03b"
+    },
+    {
+      "path": "tests/live-budget.ts",
+      "unchangedFromHead": true,
+      "sha256": "63183b68792a5834a2b70f24dc615df4334198d82a6d0f340a000973e3080ef5"
+    },
+    {
+      "path": "tests/provider-budget.ts",
+      "unchangedFromHead": true,
+      "sha256": "e8a9411eeabbc718839860a6db0b305f7bb2729b73ef6aa478d655422624ce11"
+    }
+  ],
+  "localChecks": {
+    "unit": {
+      "passed": 101,
+      "files": 11
+    },
+    "integration": {
+      "passed": 49,
+      "skipped": 1,
+      "skippedCheck": "Optional MCP Inspector not enabled"
+    },
+    "focusedAfterLastGuidanceEdit": {
+      "passed": 39,
+      "suites": ["menu-prices", "answer-template"]
+    },
+    "typecheck": "passed",
+    "lint": "passed",
+    "whitespace": "passed",
+    "note": "Checks run during this follow-up; the final string-only identity guidance edit was followed by the focused 39-test check and both full live suites. Browser, production build, Inspector and Sonic were not rerun."
+  },
+  "budget": {
+    "phases": [
+      {
+        "approvalId": "model-direction-20261014",
+        "maximumApprovedUsd": 1,
+        "observedUsd": 0.61147394,
+        "pendingUsd": 0
+      },
+      {
+        "approvalId": "model-identity-20261014",
+        "maximumApprovedUsd": 0.5,
+        "observedUsd": 0.1867987,
+        "pendingUsd": 0
+      }
+    ],
+    "maximumApprovedAdditionalUsd": 1.5,
+    "observedAdditionalUsd": 0.79827264,
+    "pendingAdditionalUsd": 0,
+    "paidTestingStopped": true,
+    "priorApproval": {
+      "approvalId": "fixes-voice-20261013",
+      "observedUsd": 0.484806577,
+      "unknownOutcomeReservationUsd": 0.25,
+      "preservedSeparately": true
+    },
+    "invoiceVerified": false,
+    "pricingEvidence": "provider-pricing-20261014-model-fix.json",
+    "note": "Usage-based estimate from reported tokens. Existing 25% reservation margin unchanged; this is not an AWS billing-enforced cap. Historical approval and its unknown voice outcome were not reset or settled."
+  },
+  "cleanup": {
+    "finalEvaluationNamespacesCleaned": true,
+    "ownedInMemoryDatabaseStopped": true,
+    "portsVerifiedReleased": [8000, 3113],
+    "persistentDatabaseFilesPreserved": true
+  },
+  "limits": [
+    "One development run per final suite; not statistical model reliability or production acceptance.",
+    "Shared voice pricing guidance and signed tool summaries changed; the saved Sonic trial predates these edits. No new Sonic or physical audio test.",
+    "Expected values and exact scoring remain unchanged; every earlier failure and partial report is preserved.",
+    "Concurrent draft-order feature edits arrived after the source hash check; these results apply to the preserved tested source patch and base commit, not those subsequent changes."
+  ],
+  "sourceManifest": "model-fix-source-manifest-20261014.json",
+  "subsequentWorkspaceChanges": {
+    "detectedAt": "2026-10-15T06:10:47.300Z",
+    "hashedFilesChanged": [
+      "packages/contracts/src/index.ts",
+      "packages/contracts/src/mcp.ts",
+      "apps/runtime/src/mcp.ts"
+    ],
+    "verifiedModelFixFilesUnchanged": true,
+    "note": "Concurrent draft-order feature changes appeared after the final source hash was validated. They were preserved and are outside these benchmark and local-test receipts."
+  }
+}

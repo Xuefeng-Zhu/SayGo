@@ -10,7 +10,11 @@ The 0.4 catalog had **ten** tools. `compare_menu_prices` takes one to eight uniq
 
 The result contains current `menu_version` / `price_version`, currency, per-option priced lines and totals, and comparisons against the FIRST option. `comparison_kind` defaults to `price_gap`: each comparison has `kind: "price_gap"` and a nonnegative `amount_cents`; no signed delta is exposed. Explicitly request `signed_change` only for a signed later-minus-first change: `amount_cents` and `subtotal_delta_cents` then preserve the sign. Both modes retain `absolute_subtotal_difference_cents` and `more_expensive_label` (null for a tie). Returned lines echo quantity, variant, choices and the actual drink/size with `kind: "listed"` or `"conversion"`. This makes the priced configuration inspectable; it cannot independently infer an unstated customer intent.
 
+The October 14 text-only follow-up changes the signed comparison's human-readable `summary` to supply both operand-labeled equations: later option minus baseline, and baseline minus later option. Both are computed from the same authoritative subtotals. Clients should match the requested subtraction to those labels; `amount_cents` and `subtotal_delta_cents` still mean later-minus-first. That follow-up preserved numeric fields, input/output schemas, unsigned price-gap summaries and the then-current contract version **0.4**. The current 0.5 catalog adds the separate savings tool described above.
+
 Both totals and modifiers use the existing ordering engine, including the simulator's fixture tax. This is an informational read, not a held quote or approval. It respects the same restaurant, lane, session and staff fences, and does not change any persisted entity. **0.4 is a breaking revision to the 0.3 comparison input/output:** clients must declare listed-meal size, read `amount_cents`, and explicitly select signed mode when needed. The other nine tools and result envelopes are unchanged.
+
+Shared price guidance now matches signed operands and preserves product identity across before/after modifications. The saved [successful Sonic receipt](evidence/live-voice-sonic-v4-i-20261014.json) predates these guidance and signed-summary changes. No Sonic rerun occurred in this text-only follow-up, and physical voice remains unverified; see [voice verification boundaries](voice.md). Historical receipts and source fingerprints remain intact.
 
 Example input:
 
@@ -139,4 +143,4 @@ New checks cover every tool's success schema, strict/error schema validation, co
 
 The build initially failed because Turbopack could not resolve a `.js` re-export of a source-only TypeScript module. The shared package now uses the extensionless import supported by this repository's bundler configuration; the successful build and browser run occurred after that repair.
 
-No live Bedrock request, acoustic test, native Alexa integration, commercial POS, OAuth interoperability, deployment or repository publication was performed. See [evaluation](evaluation.md) for evidence and operating limits. Protocol reference: [official MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+At that October 10 checkpoint, no live Bedrock request, acoustic test, native Alexa integration, commercial POS, OAuth interoperability, deployment or repository publication had been performed. See [evaluation](evaluation.md) for later evidence and current operating limits. Protocol reference: [official MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
