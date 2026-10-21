@@ -205,6 +205,32 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         amount_cents: 50,
       });
       expect(result.comparisons[0]).not.toHaveProperty("subtotal_delta_cents");
+      const { timing: _signedTiming, ...signedComparison } = await m.call(
+        "compare_menu_prices",
+        {
+          comparison_kind: "signed_change",
+          options: [
+            {
+              label: "first",
+              selections: [{ product_id: "lemonade", variant: "small" }],
+            },
+            {
+              label: "second",
+              selections: [{ product_id: "cola", variant: "small" }],
+            },
+          ],
+        },
+      );
+      const signedResult =
+        toolDataSchemas.compare_menu_prices.parse(signedComparison);
+      expect(signedResult.comparisons[0]).toMatchObject({
+        kind: "signed_change",
+        amount_cents: -50,
+        subtotal_delta_cents: -50,
+      });
+      expect(signedResult.summary).toContain(
+        "second minus first = -50 cents; first minus second = 50 cents.",
+      );
       // The bundled call adds local timing; the strict wire payload is unchanged.
       expect(await snapshot()).toEqual(before);
       expect((await getView(scope)).quote).toMatchObject({

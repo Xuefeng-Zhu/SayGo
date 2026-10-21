@@ -54,20 +54,60 @@ describe("read-only menu price comparisons", () => {
     expect(result).not.toHaveProperty("quote");
     expect(result).not.toHaveProperty("approved");
   });
-  it("preserves negative savings rather than forcing an absolute value", () => {
-    const result = price(
-      [
-        { label: "lemonade", selections: meal("lemonade") },
-        { label: "cola", selections: meal("cola") },
-      ],
-      "signed_change",
-    ).comparisons[0];
-    expect(result.subtotal_delta_cents).toBe(-50);
-    expect(result).toMatchObject({
-      absolute_subtotal_difference_cents: 50,
-      more_expensive_label: "lemonade",
-    });
-  });
+  it.each([
+    { cola: 225, lemonade: 275, change: 50 },
+    { cola: 461, lemonade: 278, change: -183 },
+    { cola: 324, lemonade: 324, change: 0 },
+  ])(
+    "reports both signed directions using current prices ($cola, $lemonade)",
+    ({ cola, lemonade, change }) => {
+      const current = structuredClone(menu);
+      current.products.find((p) => p.id === "cola")!.variants.small = cola;
+      current.products.find((p) => p.id === "lemonade")!.variants.small =
+        lemonade;
+      const before = structuredClone(current);
+      const options = [
+        {
+          label: "cedar",
+          selections: [{ product_id: "cola", variant: "small" }],
+        },
+        {
+          label: "maple",
+          selections: [{ product_id: "lemonade", variant: "small" }],
+        },
+      ];
+      for (const reversed of [false, true]) {
+        const result = compareMenuPrices(current, {
+          comparison_kind: "signed_change",
+          options: reversed ? [...options].reverse() : options,
+        });
+        const amount = change === 0 ? 0 : reversed ? -change : change;
+        const reverseAmount = amount === 0 ? 0 : -amount;
+        const baseline = reversed ? "maple" : "cedar";
+        const compared = reversed ? "cedar" : "maple";
+        expect(result.comparisons).toEqual([
+          {
+            label: compared,
+            kind: "signed_change",
+            amount_cents: amount,
+            subtotal_delta_cents: amount,
+            absolute_subtotal_difference_cents: Math.abs(change),
+            more_expensive_label:
+              change === 0 ? null : change > 0 ? "maple" : "cedar",
+          },
+        ]);
+        expect(result.baseline_label).toBe(baseline);
+        expect(result.summary).toContain(
+          `${compared} minus ${baseline} = ${amount} cents; ${baseline} minus ${compared} = ${reverseAmount} cents.`,
+        );
+        expect(result.summary).not.toContain("-0 cents");
+        expect(
+          toolDataSchemas.compare_menu_prices.safeParse(result).success,
+        ).toBe(true);
+      }
+      expect(current).toEqual(before);
+    },
+  );
   it("represents tied prices with zero difference and no costlier option", () => {
     expect(
       price([
@@ -90,6 +130,13 @@ describe("read-only menu price comparisons", () => {
       amount_cents: 50,
     });
     expect(result.comparisons[0]).not.toHaveProperty("subtotal_delta_cents");
+    expect(result.summary).toBe(
+      "high: 1225 cents before tax; low: 1175 cents before tax. " +
+        "high costs 50 cents MORE than low before tax. Choosing high instead of low adds 50 cents; choosing low instead saves 50 cents. " +
+        "No cart change, held quote, approval or order was created.",
+    );
+    expect(result.summary).not.toContain("minus");
+    expect(result.summary).not.toContain("-50");
     const bad = structuredClone(result);
     bad.comparisons[0].amount_cents = -50;
     expect(toolDataSchemas.compare_menu_prices.safeParse(bad).success).toBe(
@@ -244,9 +291,8 @@ describe("read-only menu price comparisons", () => {
 
 describe("menu answer guidance and validation", () => {
   it("states comparison direction and comma-within-field rules without fixture answers", () => {
-    expect(menuPriceGuidance).toContain(
-      "reference first, changed option second",
-    );
+    expect(menuPriceGuidance).toContain("signed_change");
+    expect(menuAnswerFormatGuidance).toContain("X_minus_Y");
     expect(menuAnswerFormatGuidance).toContain("never with |");
     expect(menuAnswerFormatGuidance).toContain("colon");
     expect(menuAnswerFormatGuidance).toContain(

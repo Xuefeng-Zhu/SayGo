@@ -114,8 +114,9 @@ export function compareMenuPrices(menu: Menu, input: unknown) {
           ? option.label
           : baseline.label,
   }));
-  // A factual human-readable summary conveys direction without requiring a
-  // model to reinterpret the sign of a caller-ordered numeric delta.
+  // Name both operands for signed questions so the requested direction does
+  // not depend on the model using the same option order as its answer fields.
+  // Unsigned price gaps keep their existing magnitude-only summary.
   const summary =
     options
       .map((o) => `${o.label}: ${o.totals.subtotal} cents before tax`)
@@ -123,6 +124,8 @@ export function compareMenuPrices(menu: Menu, input: unknown) {
     ". " +
     comparisons
       .map((c) => {
+        if (c.kind === "signed_change")
+          return `${c.label} minus ${baseline.label} = ${c.amount_cents} cents; ${baseline.label} minus ${c.label} = ${-c.amount_cents} cents.`;
         if (c.more_expensive_label === null)
           return `${c.label} and ${baseline.label} have the same subtotal.`;
         const lower =
