@@ -1,6 +1,6 @@
 {
   "preparedAtUtc": "2026-10-21T20:40:33.270793+00:00",
-  "status": "Staged publication summary; source checks completed, public document availability must be verified after push",
+  "status": "Published submission preparation; source and documents are public. Devpost submission and public video remain pending.",
   "baseHead": "7cb44f47fc40bbe9e43945c83a6238dc0a11e7bf",
   "recordedWorkingTree": {
     "sourceFileCount": 117,
@@ -85,11 +85,18 @@
   "publicationStatus": {
     "repository": "https://github.com/Xuefeng-Zhu/SayGo",
     "visibility": "PUBLIC",
-    "openSourceLicense": "MIT, copyright 2026 Xuefeng Zhu, for original source code and documentation; verify published LICENSE and GitHub detection after push",
+    "openSourceLicense": "MIT, copyright 2026 Xuefeng Zhu, for original source code and documentation; published LICENSE and GitHub MIT detection verified",
     "publicYouTubeOrVimeoUrl": null,
     "devpostSubmission": "not established by these files",
     "ownerFormAnswers": "required, including future-use feedback field 28307",
-    "licenseScope": "Third-party materials retain their own terms; generated media, audio and model assets are not relicensed. See LICENSE and THIRD_PARTY_NOTICES.md."
+    "licenseScope": "Third-party materials retain their own terms; generated media, audio and model assets are not relicensed. See LICENSE and THIRD_PARTY_NOTICES.md.",
+    "licenseVerification": {
+      "verifiedAtUtc": "2026-10-21T20:55:04.877336+00:00",
+      "verifiedCommit": "39f075d681e388a2b46463f8333f4511739a6b84",
+      "spdxIdentifier": "MIT",
+      "unauthenticatedReadSucceeded": true,
+      "licenseBytesMatchedReviewedFile": true
+    }
   },
   "documentationPreparation": {
     "externalWrites": 0,
