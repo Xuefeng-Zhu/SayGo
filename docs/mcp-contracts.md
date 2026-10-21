@@ -1,5 +1,109 @@
 # MCP contracts, version 0.5
 
+## Current client reference
+
+The runtime advertises server version **0.5.0** and eleven tools. The source of truth is [tool inputs](../packages/contracts/src/index.ts), [success/error schemas](../packages/contracts/src/mcp.ts) and [server registration](../apps/runtime/src/mcp.ts). Inputs and nested output objects are strict: use the advertised schemas rather than adding fields from the browser view.
+
+### Transport and authentication
+
+- Connect to `POST http://127.0.0.1:3101/mcp` by default; `SAYGO_RUNTIME_PORT` selects a different port. The runtime binds to loopback.
+- Use the official Streamable HTTP client flow: initialize, list tools, then call a tool. The server uses stateless JSON responses and issues no MCP session ID. Other HTTP methods return `405` with `Allow: POST`.
+- Send `Authorization: Bearer <scoped-agent-token>` on every request. The runtime creates these short-lived credentials for a specific restaurant, lane, interaction epoch and staff fence. Customer/staff cookies are not MCP credentials; there is no public token-issuance or OAuth discovery endpoint. Authentication and active ownership are checked even for reads.
+- Send one JSON-RPC message per POST, with a maximum JSON body of 64 KiB. Batches are rejected. Host must match the configured runtime or web host; if Origin is present, it must match `SAYGO_WEB_ORIGIN`.
+- `tools/list` returns the complete catalog without a cursor. Supplying a cursor is an error. An unsupported explicit `MCP-Protocol-Version` is rejected. The server exposes tools only, with no resources or prompts.
+
+The bundled [MCP client](../packages/integrations/src/mcp-client.ts) manages initialization and discovery. Its `openMcp(token)` helper connects to the configured local runtime; `call(name, arguments)` validates and unwraps results, and `close()` releases the client. Never log credentials or copy them into a tool argument.
+
+### Tool catalog
+
+All tools return a `summary` alongside the data below. “Read” means the operation does not change the draft or grant consent; it still requires a valid scoped interaction. Tool annotations describe these properties but do not replace server authorization.
+
+| Tool                   | Input                                                                  | Success data and effect                                                                                                                                   |
+| ---------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_menu`             | `{}`                                                                   | Read: full menu, prices, availability and allowed choices.                                                                                                |
+| `get_item_details`     | `product_id`                                                           | Read: one complete product. Discover IDs through the menu.                                                                                                |
+| `compare_menu_prices`  | `options`; optional `comparison_kind`                                  | Read: hypothetical priced selections, menu/price versions, totals and comparisons. See [comparison rules](#read-only-price-comparisons--october-13-2026). |
+| `find_meal_savings`    | `{}`                                                                   | Read: equivalent-cart `proposal` or null. Customer acceptance is a separate action.                                                                       |
+| `get_cart`             | `{}`                                                                   | Read: versions, priced lines, totals, unresolved choices, control flags, nullable quote and compact order.                                                |
+| `apply_cart_changes`   | `expected_version`, `request_id`, `commands`; optional `clarification` | Atomic draft write; returns the same compact shape as `get_cart`. Reuse the exact request after an uncertain outcome.                                     |
+| `prepare_order_review` | `expected_version`, `request_id`                                       | Non-null quote with exact snapshot, expiry and approval state. Identical valid retries retain expiry and approval.                                        |
+| `submit_order`         | `quote_id`                                                             | Non-null compact order. Requires existing customer approval; retry identity is the same quote ID.                                                         |
+| `get_order_status`     | `{}`                                                                   | Read: nullable compact order. `submitted` and `unknown` do not establish restaurant acceptance.                                                           |
+| `request_staff_help`   | `reason`; optional `concern`                                           | Writes a staff handoff and fences the agent; returns ownership and staff-review flags.                                                                    |
+| `cancel_draft_order`   | `expected_version`; agents omit `reset_token`                          | Proposes a reset and returns its token. Only the customer reset action can consume it.                                                                    |
+
+Cart commands are `add`, `update`, `remove` and `meal`, with at most 20 commands per atomic batch. Target exact stable line IDs from `get_cart`. An `update.choices` value replaces the whole choices map, so preserve wanted groups; `{}` clears them. For an ambiguous target or unsupported change, send `commands: []` with the appropriate `clarification` instead of guessing. Cart-change and review `request_id` values are caller-generated UUIDs; keep the same ID and arguments until the outcome is known.
+
+### Customer actions outside MCP
+
+The intended ordering flow is menu/cart discovery → typed cart changes → exact review → customer confirmation → order reconciliation. `POST /api/lane/confirm` records customer approval and then calls `submit_order` through MCP. The approval route uses the authenticated customer cookie and checks idle voice, quote expiry and current state; an agent cannot approve its own quote.
+
+Likewise, `POST /api/lane/reset` consumes a customer-approved reset token. `POST /api/lane/meal-savings/apply` and `POST /api/lane/undo` accept displayed proposal/receipt identities and current versions. These same-origin customer routes are implemented in [runtime routes](../apps/runtime/src/app.ts); they are not extra agent tools. See [draft improvements](draft-improvements.md) for their inputs and retry behavior. Browser actions retrieve the full canonical `View` separately from the compact MCP response.
+
+## Result envelope and client validation
+
+The bundled client, fixture runner, Nova adapter and browser gateway share the same contracts. `structuredContent` and the JSON text content contain the same strict envelope:
+
+```json
+{
+  "result": {
+    "ok": true,
+    "data": { "order": null, "summary": "No order has been submitted." }
+  }
+}
+```
+
+This is an illustrative `get_order_status` success, with `isError: false`. On execution failure, `result` instead contains `ok: false` and `error`, and the MCP response sets `isError: true`. Both variants conform to that tool's advertised `outputSchema`. Unknown tool names remain protocol errors.
+
+The bundled `openMcp().call()` validates the envelope, unwraps `result.data`, and adds local `timing.tool_ms`. That timing field is not part of the MCP wire payload. Failure throws `McpCallError` with a validated `.recovery` object. Invalid result schemas or contradictory error flags fail closed.
+
+Compact orders include identity, number, status, timestamps and payment-due status. They exclude the order snapshot. Cart responses no longer repeat the menu, raw cart or internal session/fence data. Every object shape is strict, including nested products, quotes and orders. Money is integer USD cents; timestamps are ISO strings.
+
+The authenticated browser gateway fetches the full canonical `View` separately after an MCP action. Menu rendering, quote confirmation and kitchen details therefore do not depend on overloading every MCP response with UI state. The integration fixture asserts that its compact cart data is less than half the serialized full view; this is a fixture-specific payload comparison, not a model-token benchmark.
+
+## Durable review request identity
+
+Generate one UUID for a new review intent and retain it with the exact arguments until its outcome is known. Inside the domain transaction, a durable idempotency record binds session, actor and request ID to the argument hash and quote ID. The current DynamoDB implementation uses a deterministic record key rather than a SQL unique index.
+
+- Concurrent identical requests return one still-valid quote with the same expiry.
+- Retrying an already approved, still-valid review preserves approval; it does not recreate consent.
+- If a response is lost after commit, a fresh MCP client can reuse the original arguments and request ID to recover that same quote.
+- Different arguments under the same identity are rejected with `IDEMPOTENCY_MISMATCH`.
+- An expired or invalidated quote is never resurrected. Cart/menu changes and ownership fences are rechecked. Refresh canonical state and use a new request ID for a genuinely new review, followed by fresh customer approval.
+- Once an order exists, the draft review operation remains blocked. Reconcile the existing order rather than creating another review.
+
+Submission still uses the original approved `quote_id` as its retry identity. A timeout or lost response is not evidence of rollback. The agent cannot approve a quote or grant itself staff control.
+
+## Recovery metadata
+
+```json
+{
+  "result": {
+    "ok": false,
+    "error": {
+      "code": "VERSION_CONFLICT",
+      "message": "Refresh the cart before making another change.",
+      "retryable": false,
+      "next_action": "refresh_cart"
+    }
+  }
+}
+```
+
+Messages are user-facing; automation should branch on `code` and `next_action`. `retryable` describes whether an identical request can be retried now, not whether eventual recovery is possible. Writes are never automatically replayed by this client.
+
+| Condition                               | Next action                                           |
+| --------------------------------------- | ----------------------------------------------------- |
+| Stale cart version                      | `refresh_cart`                                        |
+| Expired/invalid quote                   | `review_order` with a new review request ID           |
+| Missing customer approval               | `confirm_order` via the customer UI                   |
+| Staff fence or unresolved staff concern | `wait_for_staff`                                      |
+| Invalid arguments                       | `correct_arguments` using the advertised input schema |
+| Lost submit response                    | `reconcile_order`, retaining the original quote ID    |
+| Lost read response                      | `retry_read` if the session remains active            |
+
+HTTP auth/domain failures and rate limiting also preserve recovery metadata. A rate-limited response includes `retry_after_ms` and `Retry-After`; wait and reconcile before considering a write retry. The Nova adapter forwards the structured recovery object instead of flattening it to a generic string. Raw malformed inputs are not echoed, and unexpected server errors do not expose internals.
+
 ## Equivalent meal savings — October 14, 2026
 
 The current catalog has **eleven** tools. Version 0.5 adds read-only `find_meal_savings` with strict `{proposal, summary}` output. It proposes equivalent combinations from the current cart without writing data. Only the authenticated customer screen can accept a proposal, after revalidation against the current cart and menu. Existing ten tool schemas remain unchanged. See [draft improvements](draft-improvements.md) for proposal fields, customer acceptance, persistent receipts and Undo.
@@ -47,93 +151,13 @@ Example input:
 
 The MCP-builder guide informed the workflow tool, strict schema validation, read-only annotations and independently verifiable evaluations. Primary references: [MCP tools and structured results](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [pinned SDK generation](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x), and [Nova Converse reasoning/tool use](https://docs.aws.amazon.com/nova/latest/nova2-userguide/using-converse-api.html). The repository's SDK generation was retained; this is not a v2 migration.
 
-## Historical 0.2 contract changes
+## Historical 0.2 storage upgrade
 
-The original nine tools still run through the authenticated Streamable HTTP endpoint. The historical 0.2 revision below changed their data contract; it did not add a transport, OAuth, a deployment, or live provider verification. Its PostgreSQL migration notes describe the old storage layer; current setup and import guidance is in [DynamoDB](dynamodb.md).
+The original nine tools used the same authenticated Streamable HTTP endpoint. Revision 0.2 introduced the required review `request_id` and strict result envelope retained above; it did not add OAuth, deployment or live provider verification.
 
-## Upgrade notes
+At that PostgreSQL checkpoint, `pnpm db:migrate` applied legacy migration `0003.sql`, adding nullable review-request metadata and a unique constraint without discarding quotes. It was applied locally to `saygo_demo` and the isolated `saygo_test` database. These are historical SQL upgrade notes. The current command provisions DynamoDB; follow [DynamoDB setup and import guidance](dynamodb.md) for a current checkout.
 
-Run `pnpm db:migrate` before starting the updated runtime. Migration `0003.sql` adds nullable review-request metadata and a unique constraint without discarding existing quotes. It has been applied locally to `saygo_demo` and the isolated `saygo_test` database.
-
-Direct MCP clients must adapt to both changes below. SayGo's bundled client, fixture runner, Nova adapter and browser gateway have been updated together.
-
-1. `prepare_order_review` now requires `request_id`, a UUID, as well as `expected_version`.
-2. `structuredContent` and the JSON text content now contain the same strict envelope:
-
-```json
-{
-  "result": {
-    "ok": true,
-    "data": { "order": null, "summary": "No order has been submitted." }
-  }
-}
-```
-
-This is an illustrative `get_order_status` success, with `isError: false`. On execution failure, `result` instead contains `ok: false` and `error`, and the MCP response sets `isError: true`. Both variants conform to that tool's advertised `outputSchema`. Unknown tool names remain protocol errors.
-
-The bundled `openMcp().call()` validates the envelope, unwraps `result.data`, and adds local `timing.tool_ms`. That timing field is not part of the MCP wire payload. Failure throws `McpCallError` with a validated `.recovery` object. Invalid result schemas or contradictory error flags fail closed.
-
-## Per-tool success data
-
-| Tool                             | Data                                                                                                                                |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `get_menu`                       | Full menu and summary; the dedicated operation for menu discovery.                                                                  |
-| `get_item_details`               | One complete product and summary.                                                                                                   |
-| `get_cart`, `apply_cart_changes` | Versions, priced lines, integer-cent totals, unresolved choices, ownership/review flags, optional quote, compact order and summary. |
-| `prepare_order_review`           | Non-null quote with exact snapshot, expiry and approval state; summary.                                                             |
-| `submit_order`                   | Non-null compact order and summary.                                                                                                 |
-| `get_order_status`               | Nullable compact order and summary only.                                                                                            |
-| `request_staff_help`             | Ownership and staff-review flags; summary.                                                                                          |
-| `cancel_draft_order`             | Cart version, proposed reset token and summary. Only the customer action can confirm reset.                                         |
-
-Compact orders include identity, number, status, timestamps and payment-due status. They exclude the order snapshot. Cart responses no longer repeat the menu, raw cart or internal session/fence data. Every object shape is strict, including nested products, quotes and orders. Money is integer USD cents; timestamps are ISO strings.
-
-The authenticated browser gateway fetches the full canonical `View` separately after an MCP action. Menu rendering, quote confirmation and kitchen details therefore do not depend on overloading every MCP response with UI state. The integration fixture asserts that its compact cart data is less than half the serialized full view; this is a fixture-specific payload comparison, not a model-token benchmark.
-
-## Durable review request identity
-
-Generate one UUID for a new review intent and retain it with the exact arguments until its outcome is known. The database records the session, actor, request ID and canonical argument hash under a unique index, inside the domain transaction.
-
-- Concurrent identical requests return one still-valid quote with the same expiry.
-- Retrying an already approved, still-valid review preserves approval; it does not recreate consent.
-- If a response is lost after commit, a fresh MCP client can reuse the original arguments and request ID to recover that same quote.
-- Different arguments under the same identity are rejected with `IDEMPOTENCY_MISMATCH`.
-- An expired or invalidated quote is never resurrected. Cart/menu changes and ownership fences are rechecked. Refresh canonical state and use a new request ID for a genuinely new review, followed by fresh customer approval.
-- Once an order exists, the draft review operation remains blocked. Reconcile the existing order rather than creating another review.
-
-Submission still uses the original approved `quote_id` as its retry identity. A timeout or lost response is not evidence of rollback. The agent cannot approve a quote or grant itself staff control.
-
-## Recovery metadata
-
-```json
-{
-  "result": {
-    "ok": false,
-    "error": {
-      "code": "VERSION_CONFLICT",
-      "message": "Refresh the cart before making another change.",
-      "retryable": false,
-      "next_action": "refresh_cart"
-    }
-  }
-}
-```
-
-Messages are user-facing; automation should branch on `code` and `next_action`. `retryable` describes whether an identical request can be retried now, not whether eventual recovery is possible. Writes are never automatically replayed by this client.
-
-| Condition                               | Next action                                           |
-| --------------------------------------- | ----------------------------------------------------- |
-| Stale cart version                      | `refresh_cart`                                        |
-| Expired/invalid quote                   | `review_order` with a new review request ID           |
-| Missing customer approval               | `confirm_order` via the customer UI                   |
-| Staff fence or unresolved staff concern | `wait_for_staff`                                      |
-| Invalid arguments                       | `correct_arguments` using the advertised input schema |
-| Lost submit response                    | `reconcile_order`, retaining the original quote ID    |
-| Lost read response                      | `retry_read` if the session remains active            |
-
-HTTP auth/domain failures and rate limiting also preserve recovery metadata. A rate-limited response includes `retry_after_ms` and `Retry-After`; wait and reconcile before considering a write retry. The Nova adapter forwards the structured recovery object instead of flattening it to a generic string. Raw malformed inputs are not echoed, and unexpected server errors do not expose internals.
-
-## Verification and boundaries
+## Historical verification and boundaries
 
 The subsequent [MCP guide review](mcp-best-practices-review.md) adds transport/authentication edge-case checks, clearer discovery metadata, ten read-only evaluation questions and independent Inspector verification. It expands the suite to 70 passing tests; the paragraph below records the initial contract 0.2 verification.
 

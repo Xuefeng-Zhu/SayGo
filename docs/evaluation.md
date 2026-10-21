@@ -4,6 +4,8 @@
 
 The sections below are dated checkpoints. Older PostgreSQL, tool-count, test-count, provider and publication statements describe their checkpoint only. The newest live text-model verification is the final October 14 follow-up below (October 15 UTC). The October 20 publication checks verify the model fixes together with the subsequently committed draft-order features locally.
 
+For current commands, use [local development and software verification](local-development.md) or [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Historical results and spending approvals are evidence of those runs, not authorization for new provider calls.
+
 ## Pre-publication local checks — October 20, 2026
 
 The model fixes were checked on top of `118eef4`, which adds correction receipts and equivalent meal savings under MCP contract 0.5 with eleven tools. **124 unit tests and 61 DynamoDB/HTTP MCP integration tests passed**, with one optional Inspector check skipped. Lint and strict typecheck passed. No provider calls were made, and browser/build/Sonic checks were not rerun. The temporary in-memory database stopped and ports 8000/3111 were released. [Local-check receipt and source hashes](evidence/model-fix-prepush-20261020.json).
@@ -129,7 +131,7 @@ Total observed usage across all three runs was **190,828 input tokens and 21,694
 
 The runner reserves conservative input/output costs before each call, keeps a 25% margin, deducts prior reported spend across preserved runs, retains reservations for unknown outcomes, disables provider retries, and bounds tools, context, turns and output. Current Nova 2 Lite does not provide CountTokens, so its input reservation uses two tokens per serialized UTF-8 byte plus 8,192 framing tokens. The input bound was checked against reported usage after each call. This is an application-side spending guard, not an AWS billing cap.
 
-To repeat a fresh approved comparison without overwriting these results, use `SAYGO_EVAL_RUN_ID` with a unique identifier, `SAYGO_EVAL_REASONING=low` and `SAYGO_EVAL_MAX_TOKENS=8192`. Existing reports remain part of the same $1 ledger. Every run requires the explicit live-call gate and dollar maximum; use a newly approved budget before extending that scope.
+For a new comparison, follow [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Use a fresh report ID and an initialized approval ledger; both suites share that approval's observed usage and outstanding reservations. Preserve these reports and earlier reservations. The historical $1 approval above does not authorize another run.
 
 ## Earlier PostgreSQL build evidence
 

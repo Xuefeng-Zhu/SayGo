@@ -16,6 +16,35 @@ Local verification during the follow-up passed **101 unit tests and 49 DynamoDB/
 
 The owner approved $1 and then another $0.50 for this text-only follow-up. Its two ledgers record **$0.798272640 observed usage and $0 pending**, within the $1.50 combined authorization. Paid testing is stopped and the owned in-memory database/listeners are stopped. The older $0.25 unknown voice-outcome reservation remains separate and unchanged. These are token-based estimates, not an invoice. [Complete accounting and preserved intermediate results](evidence/model-fix-verification-20261014.json).
 
+## Run an authorized text evaluation
+
+Start DynamoDB Local first using the [local setup guide](local-development.md). The runner creates and cleans a temporary namespace and binds MCP on port 3113. It calls real Bedrock Nova 2 Lite, even though the database is local. Use an authorized AWS profile/credential chain and an explicitly approved additional budget before running it.
+
+Use an already initialized `SAYGO_PROVIDER_APPROVAL_ID` and set `SAYGO_EVAL_MAX_USD` to that ledger's approved limit. Each approval supports at most $1; the recorded $1.50 follow-up used two separate approvals. Initializing a ledger records an authorization that has already been given; it does not grant permission to spend. Existing ledgers cannot be reset. Do not reuse a historical approval without checking its remaining scope, observed usage and pending reservations.
+
+With those two variables set, run a complete original suite with a fresh `SAYGO_EVAL_RUN_ID` (letters, digits, underscores and hyphens; at most 40 characters):
+
+```sh
+: "${SAYGO_PROVIDER_APPROVAL_ID:?Set an initialized approval ID}"
+: "${SAYGO_EVAL_MAX_USD:?Set the approved ledger limit}"
+unset SAYGO_EVAL_IDS
+DYNAMODB_ENDPOINT=http://127.0.0.1:8000 \
+DYNAMODB_TABLE=saygo-local \
+SAYGO_DEMO=true \
+SAYGO_LIVE_EVAL=true \
+SAYGO_PROVIDER_APPROVAL_ID="$SAYGO_PROVIDER_APPROVAL_ID" \
+SAYGO_EVAL_MAX_USD="$SAYGO_EVAL_MAX_USD" \
+SAYGO_EVAL_REASONING=low \
+SAYGO_EVAL_MAX_TOKENS=8192 \
+SAYGO_EVAL_SUITE=original \
+SAYGO_EVAL_RUN_ID=original-your-unique-id \
+pnpm test:live
+```
+
+Change the suite to `generalization` and choose a different run ID for the ten additional questions, within the same authorized ledger limit. Reports are saved under `docs/evidence/live-model-evaluation-…-run-<id>.json`; existing reports are refused rather than overwritten. `SAYGO_EVAL_IDS` selects focused probes, whose `fullSuite:false` results do not replace a full benchmark.
+
+The runner defaults to the original suite, disabled reasoning and 2,048 output tokens; the command explicitly selects the saved successful configuration. Its read-only allowlist contains only `get_menu`, `get_item_details` and `compare_menu_prices`, so this benchmark does not evaluate `find_meal_savings`. Answers are scored by exact trimmed equality without repair or failed-answer retries. Record the new report's source hash and outcome separately from the October 14 results above.
+
 ## What changed
 
 The MCP-builder workflow led to one additional workflow tool rather than making the model the pricing authority. The tested contract 0.4 snapshot exposes `compare_menu_prices`, backed by the existing `applyCommands` / `priceCart` engine. It computes hypothetical quantities, modifiers, listed meals, standalone meal conversions and fixture tax without writing customer data. Incomplete sizes/choices, unavailable items/components and unsupported conversions fail closed. Authentication, restaurant/lane scope and staff fences still apply.
