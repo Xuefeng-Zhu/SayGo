@@ -26,6 +26,11 @@ const resetMatches = (proposal: ResetProposal, view: View) =>
   view.session.owner === "ai" &&
   !view.session.needs_staff_review &&
   !view.order;
+const controlScope = (view: View | null) =>
+  view
+    ? `${view.session.id}:${view.session.epoch}:${view.session.fence}:${view.session.owner}:${view.session.needs_staff_review}:${view.order?.id ?? ""}`
+    : "";
+const editScope = (view: View) => `${controlScope(view)}:${view.cart_version}`;
 export function LaneBoard() {
   const [view, setView] = useState<View | null>(null),
     [config, setConfig] = useState<Config | null>(null),
@@ -37,22 +42,39 @@ export function LaneBoard() {
       "You can make a change, or review your order.",
     ),
     [menu, setMenu] = useState(false),
-    [edit, setEdit] = useState<{ product: Product; line?: Line } | null>(null),
+    [edit, setEdit] = useState<{
+      product: Product;
+      line?: Line;
+      scope: string;
+    } | null>(null),
     [reset, setReset] = useState<ResetProposal | null>(null),
     [text, setText] = useState("");
   const request = useRef(0),
+    busyRef = useRef(false),
     mounted = useRef(true),
     session = useRef<string | undefined>(undefined),
     lastQuote = useRef<string | undefined>(undefined),
     currentView = useRef<View | null>(null);
   const accept = useCallback((v: View) => {
-    if (session.current !== v.session.id) {
+    const previous = currentView.current;
+    if (
+      previous?.session.id === v.session.id &&
+      (v.session.epoch < previous.session.epoch ||
+        v.session.fence < previous.session.fence ||
+        v.cart_version < previous.cart_version)
+    )
+      return false;
+    if (controlScope(previous) !== controlScope(v)) {
       session.current = v.session.id;
       setEdit(null);
       setMenu(false);
       setReset(null);
       setText("");
-      setSummary("You can make a change, or review your order.");
+      setSummary(
+        previous?.session.id === v.session.id && v.session.owner === "ai"
+          ? "You’re back in control. Check the draft, then start voice when you’re ready."
+          : "You can make a change, or review your order.",
+      );
     } else if (lastQuote.current && !v.quote && !v.order) {
       setSummary(
         "Your review changed or expired. Please review the current order again.",
@@ -75,28 +97,33 @@ export function LaneBoard() {
     lastQuote.current = v.quote?.id;
     currentView.current = v;
     setView(v);
+    return true;
   }, []);
-  const refresh = useCallback(async () => {
-    const seq = ++request.current;
-    try {
-      const v = await api<View>("/lane/state");
-      if (mounted.current && seq === request.current) accept(v);
-    } catch (e) {
-      if (
-        mounted.current &&
-        seq === request.current &&
-        e instanceof ApiError &&
-        e.status === 401
-      ) {
-        currentView.current = null;
-        setView(null);
-        setReset(null);
-        session.current = undefined;
+  const refresh = useCallback(
+    async (force = false) => {
+      if (busyRef.current && !force) return;
+      const seq = ++request.current;
+      try {
+        const v = await api<View>("/lane/state");
+        if (mounted.current && seq === request.current) accept(v);
+      } catch (e) {
+        if (
+          mounted.current &&
+          seq === request.current &&
+          e instanceof ApiError &&
+          e.status === 401
+        ) {
+          currentView.current = null;
+          setView(null);
+          setReset(null);
+          session.current = undefined;
+        }
+      } finally {
+        if (mounted.current) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [accept]);
+    },
+    [accept],
+  );
   const voice = useVoice(
     view?.session.id,
     view?.session.epoch,
@@ -118,6 +145,15 @@ export function LaneBoard() {
       setReset(proposal);
       void refresh();
     },
+    view
+      ? {
+          fence: view.session.fence,
+          enabled:
+            view.session.owner === "ai" &&
+            !view.session.needs_staff_review &&
+            !view.order,
+        }
+      : undefined,
   );
   useEffect(() => {
     mounted.current = true;
@@ -148,13 +184,21 @@ export function LaneBoard() {
     voice.stop,
   ]);
   const act = async (path: string, body: unknown) => {
+    if (busyRef.current) return null;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     const seq = ++request.current;
+    const startedScope = controlScope(currentView.current);
     try {
       const result = await api<View>(path, body);
-      if (seq === request.current && result.session) accept(result);
-      if (result.session?.id === session.current) {
+      const accepted =
+        mounted.current &&
+        seq === request.current &&
+        startedScope === controlScope(currentView.current) &&
+        result.session &&
+        accept(result);
+      if (accepted) {
         if (result.summary) setSummary(result.summary);
         if (result.reset_token)
           setReset({
@@ -165,20 +209,33 @@ export function LaneBoard() {
             fence: result.session.fence,
           });
       }
-      await refresh();
-      return result;
+      await refresh(true);
+      return accepted ? result : null;
     } catch (e) {
-      setError((e as Error).message);
-      await refresh();
+      if (mounted.current && startedScope === controlScope(currentView.current))
+        setError((e as Error).message);
+      await refresh(true);
       return null;
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (mounted.current) setBusy(false);
     }
   };
   const call = (name: string, args: object = {}) =>
     act("/lane/tool", { name, arguments: args });
   const change = async (command: Command) => {
-    if (!view) return;
+    if (
+      !view ||
+      !currentView.current ||
+      !edit ||
+      voice.pending ||
+      edit.scope !== editScope(view) ||
+      edit.scope !== editScope(currentView.current) ||
+      view.session.owner !== "ai" ||
+      view.session.needs_staff_review ||
+      view.order
+    )
+      return;
     const result = await call("apply_cart_changes", {
       expected_version: view.cart_version,
       request_id: crypto.randomUUID(),
@@ -200,6 +257,8 @@ export function LaneBoard() {
     });
   };
   const depart = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     voice.stop();
     setBusy(true);
     try {
@@ -215,6 +274,7 @@ export function LaneBoard() {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+      busyRef.current = false;
     }
   };
   const status = view?.order?.status;
@@ -225,7 +285,11 @@ export function LaneBoard() {
         {view && (
           <button
             className="header-help"
-            disabled={busy || view.session.needs_staff_review}
+            disabled={
+              busy ||
+              view.session.owner === "staff" ||
+              view.session.needs_staff_review
+            }
             onClick={() => {
               voice.stop();
               void call("request_staff_help", {
@@ -322,6 +386,7 @@ export function LaneBoard() {
                               (p) => p.id === line.product_id,
                             )!,
                             line,
+                            scope: editScope(view),
                           })
                       : undefined
                   }
@@ -333,7 +398,11 @@ export function LaneBoard() {
                     Choose from the menu, try the example order, or enable live
                     voice when configured.
                   </p>
-                  <button onClick={() => setMenu(true)} className="outline">
+                  <button
+                    disabled={locked}
+                    onClick={() => setMenu(true)}
+                    className="outline"
+                  >
                     Browse menu
                   </button>
                 </div>
@@ -362,6 +431,14 @@ export function LaneBoard() {
                   receipt={view.last_change}
                   disabled={Boolean(locked)}
                   voiceActive={voice.active}
+                  disabledReason={
+                    view.session.owner === "staff" ||
+                    view.session.needs_staff_review
+                      ? "Undo is paused while staff handles this draft."
+                      : busy
+                        ? "Wait for the current change to finish."
+                        : undefined
+                  }
                   undo={() =>
                     void act("/lane/undo", {
                       receipt_id: view.last_change!.id,
@@ -370,6 +447,12 @@ export function LaneBoard() {
                     })
                   }
                 />
+              )}
+              {view.order && (
+                <p className="small">
+                  This ticket has been submitted. Undo only changes a draft; ask
+                  staff about changes or cancellation.
+                </p>
               )}
               {view.session.staff_message && (
                 <div className="notice">
@@ -646,31 +729,36 @@ export function LaneBoard() {
         </div>
       )}
       <Footer />
-      {menu && view && (
+      {menu && view && !locked && (
         <Modal title="Harbor Burger menu" close={() => setMenu(false)}>
           <MenuPanel
             menu={view.menu}
             choose={(p) => {
               setMenu(false);
-              setEdit({ product: p });
+              setEdit({ product: p, scope: editScope(view) });
             }}
           />
         </Modal>
       )}
-      {edit && view && (
-        <ItemEditor
-          product={edit.product}
-          line={edit.line}
-          close={() => setEdit(null)}
-          busy={busy}
-          save={(c) => void change(c)}
-          remove={
-            edit.line
-              ? () => void change({ type: "remove", line_id: edit.line!.id })
-              : undefined
-          }
-        />
-      )}
+      {edit &&
+        view &&
+        edit.scope === editScope(view) &&
+        view.session.owner === "ai" &&
+        !view.session.needs_staff_review &&
+        !view.order && (
+          <ItemEditor
+            product={edit.product}
+            line={edit.line}
+            close={() => setEdit(null)}
+            busy={busy || voice.pending}
+            save={(c) => void change(c)}
+            remove={
+              edit.line
+                ? () => void change({ type: "remove", line_id: edit.line!.id })
+                : undefined
+            }
+          />
+        )}
       {reset && view && resetMatches(reset, view) && (
         <Modal title="Start this draft over?" close={() => setReset(null)}>
           <p>

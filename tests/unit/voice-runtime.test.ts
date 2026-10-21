@@ -10,7 +10,7 @@ interface TestSocket extends EventEmitter {
   send: ReturnType<typeof vi.fn>;
 }
 const mock = vi.hoisted(() => {
-  const client = { close: vi.fn<() => Promise<void>>() };
+  const client = { close: vi.fn<() => Promise<void>>(), call: vi.fn() };
   const nova = {
     start: vi.fn<() => Promise<void>>(),
     close: vi.fn<() => void>(),
@@ -33,6 +33,10 @@ const mock = vi.hoisted(() => {
     options: {} as VoiceSessionOptions,
     laneScope: vi.fn(),
     tool: vi.fn(),
+    staff: vi.fn(),
+    staffAction: vi.fn(),
+    activeScope: vi.fn(),
+    emit: vi.fn(),
   };
 });
 vi.mock("ws", async () => {
@@ -78,6 +82,8 @@ vi.mock("@saygo/domain", async () => ({
   getView: mock.getView,
   voiceLease: mock.voiceLease,
   tool: mock.tool,
+  staffAction: mock.staffAction,
+  activeScope: mock.activeScope,
 }));
 vi.mock("@saygo/integrations", () => ({
   openMcp: mock.openMcp,
@@ -88,11 +94,17 @@ vi.mock("../../apps/runtime/src/auth.js", () => ({
   agentToken: () => "unit-agent-token",
   cookie: () => "unit-lane-cookie",
   laneScope: mock.laneScope,
+  staff: mock.staff,
 }));
 vi.mock("../../packages/integrations/src/nova.js", () => ({
   NovaSession: class {
-    constructor(_mcp: unknown, _emit: unknown, options: VoiceSessionOptions) {
+    constructor(
+      _mcp: unknown,
+      emit: typeof mock.emit,
+      options: VoiceSessionOptions,
+    ) {
       mock.options = options;
+      mock.emit = emit;
       return mock.nova;
     }
   },
@@ -140,10 +152,19 @@ beforeEach(async () => {
   };
   mock.scopeForToken.mockResolvedValue(scope);
   mock.laneScope.mockResolvedValue(scope);
-  mock.getView.mockResolvedValue({ session: { needs_staff_review: false } });
+  mock.activeScope.mockResolvedValue({ ...scope, actor: "staff" });
+  mock.getView.mockResolvedValue({
+    session: {
+      id: scope.session_id,
+      fence: 2,
+      owner: "ai",
+      needs_staff_review: false,
+    },
+  });
   mock.voiceLease.mockResolvedValue();
   mock.openMcp.mockResolvedValue(mock.client);
   mock.client.close.mockResolvedValue();
+  mock.staff.mockResolvedValue({ id: "crew", role: "crew" });
   mock.nova.start.mockImplementation(() => new Promise<void>(() => {}));
   mock.nova.drain.mockResolvedValue();
   runtime = await import("../../apps/runtime/src/voice.js");
@@ -185,6 +206,7 @@ it("acknowledges an interrupt with its request identity and audio generation", a
     generation: 4,
     session_id: "voice-unit",
     epoch: 1,
+    fence: 2,
   });
   const sent = socket.send.mock.calls.length;
   for (const request_id of [undefined, "", "x".repeat(65)])
@@ -360,6 +382,210 @@ it("does not forward a late reset proposal after that connection stops", async (
   expect(first.send).not.toHaveBeenCalled();
   expect(next.send).not.toHaveBeenCalled();
   expect(mock.onTool).toHaveBeenCalledOnce();
+});
+it("rejects an old upgrade that completes after takeover cleanup returned", async () => {
+  const read = deferred();
+  mock.getView.mockImplementationOnce(async () => {
+    await read.promise;
+    return { session: { needs_staff_review: false } };
+  });
+  const connecting = connect();
+  await flush();
+  await runtime.stopVoice("voice-unit", 3);
+  read.resolve();
+  await connecting;
+  await flush();
+  const socket = mock.sockets.at(-1)!;
+  expect(socket.close).toHaveBeenCalledWith(
+    1008,
+    "Control changed. Start a new voice session.",
+  );
+  expect(mock.voiceLease).not.toHaveBeenCalled();
+  expect(mock.openMcp).not.toHaveBeenCalled();
+  expect(mock.nova.start).not.toHaveBeenCalled();
+});
+it("a delayed stop for an old control generation cannot stop resumed voice", async () => {
+  await runtime.stopVoice("voice-unit", 3);
+  mock.scopeForToken.mockResolvedValue({
+    ...(await mock.scopeForToken()),
+    fence: 4,
+  });
+  const socket = await connect();
+  await runtime.stopVoice("voice-unit", 3);
+  expect(socket.close).not.toHaveBeenCalled();
+  expect(mock.nova.start).toHaveBeenCalledOnce();
+});
+it("revalidates ownership after a slow MCP acquisition before opening Nova", async () => {
+  const acquired = deferred();
+  mock.openMcp.mockImplementationOnce(async () => {
+    await acquired.promise;
+    return mock.client;
+  });
+  const socket = await connect();
+  mock.getView.mockRejectedValueOnce(new Error("Fenced"));
+  acquired.resolve();
+  await flush();
+  await runtime.stopVoice("voice-unit");
+  expect(mock.nova.start).not.toHaveBeenCalled();
+  expect(socket.close).toHaveBeenCalled();
+  expect(mock.client.close).toHaveBeenCalledOnce();
+});
+it("a successful spoken staff request stops voice and suppresses late model output", async () => {
+  const socket = await connect();
+  mock.options.onTool!("request_staff_help", { reason: "assistance" }, {});
+  const count = socket.send.mock.calls.length;
+  mock.emit({ type: "audio", data: "late-audio" });
+  mock.emit({ type: "text", text: "late-answer" });
+  await runtime.stopVoice("voice-unit");
+  expect(socket.send).toHaveBeenCalledTimes(count);
+  expect(socket.close).toHaveBeenCalled();
+  expect(mock.nova.close).toHaveBeenCalledOnce();
+  expect(mock.nova.drain).toHaveBeenCalledOnce();
+  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  const late = await connect();
+  expect(late.close).toHaveBeenCalledWith(
+    1008,
+    "Control changed. Start a new voice session.",
+  );
+});
+
+async function postAction(path: string, data: object) {
+  const { app } = await import("../../apps/runtime/src/app.js");
+  const http = createServer(app);
+  await new Promise<void>((resolve) => http.listen(0, "127.0.0.1", resolve));
+  const port = (http.address() as { port: number }).port;
+  const response = new Promise<{ status: number; body: string }>(
+    (resolve, reject) => {
+      const request = httpRequest(
+        {
+          hostname: "127.0.0.1",
+          port,
+          path,
+          method: "POST",
+          headers: {
+            host: "localhost:3199",
+            origin: "http://localhost:3198",
+            "content-type": "application/json",
+          },
+        },
+        (reply) => {
+          let body = "";
+          reply.setEncoding("utf8");
+          reply.on("data", (part: string) => {
+            body += part;
+          });
+          reply.on("end", () => resolve({ status: reply.statusCode!, body }));
+        },
+      );
+      request.on("error", reject);
+      request.end(JSON.stringify(data));
+    },
+  );
+  return {
+    response,
+    close: () => new Promise<void>((resolve) => http.close(() => resolve())),
+  };
+}
+const crewAction = {
+  session_id: "a1bd75bb-d9b3-40df-a661-975938cd321b",
+  action: "takeover",
+  expected_fence: 2,
+  request_id: "115160e0-6d3a-452d-a54f-761a01bfffe2",
+};
+it("HTTP takeover fences before draining and returns only after voice cleanup", async () => {
+  vi.useRealTimers();
+  const payload = crewAction;
+  const scope = {
+    ...(await mock.scopeForToken()),
+    session_id: payload.session_id,
+  };
+  mock.scopeForToken.mockResolvedValue(scope);
+  mock.activeScope.mockResolvedValue({ ...scope, actor: "staff" });
+  await connect();
+  const drain = deferred();
+  mock.nova.drain.mockReturnValueOnce(drain.promise);
+  const taken = {
+    session: { id: payload.session_id, fence: 3, owner: "staff" },
+  };
+  mock.staffAction.mockImplementationOnce(async () => {
+    expect(mock.nova.close).not.toHaveBeenCalled();
+    return taken;
+  });
+  mock.getView.mockResolvedValue(taken);
+  const http = await postAction("/api/crew/action", payload);
+  let returned = false;
+  void http.response.then(() => {
+    returned = true;
+  });
+  try {
+    await vi.waitFor(() => expect(mock.staffAction).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(mock.nova.drain).toHaveBeenCalledOnce());
+    expect(returned).toBe(false);
+    drain.resolve();
+    expect((await http.response).status).toBe(200);
+    expect(mock.staffAction).toHaveBeenCalledWith(
+      expect.objectContaining({ session_id: payload.session_id }),
+      "takeover",
+      undefined,
+      { expected_fence: 2, request_id: payload.request_id },
+    );
+    expect(mock.voiceLease).toHaveBeenLastCalledWith(payload.session_id, null);
+  } finally {
+    drain.resolve();
+    await runtime.stopVoice(payload.session_id);
+    await http.close();
+  }
+});
+it("an HTTP retry of an old takeover does not stop the newly resumed AI session", async () => {
+  vi.useRealTimers();
+  const scope = {
+    ...(await mock.scopeForToken()),
+    session_id: crewAction.session_id,
+    fence: 4,
+  };
+  mock.scopeForToken.mockResolvedValue(scope);
+  mock.activeScope.mockResolvedValue({ ...scope, actor: "staff" });
+  const socket = await connect();
+  mock.staffAction.mockResolvedValue({
+    session: { id: scope.session_id, fence: 4, owner: "ai" },
+  });
+  const http = await postAction("/api/crew/action", crewAction);
+  try {
+    expect((await http.response).status).toBe(200);
+    expect(socket.close).not.toHaveBeenCalled();
+  } finally {
+    await runtime.stopVoice(scope.session_id);
+    await http.close();
+  }
+});
+it("customer help fences via MCP before waiting for the voice tool drain", async () => {
+  vi.useRealTimers();
+  await connect();
+  const drain = deferred();
+  mock.nova.drain.mockReturnValueOnce(drain.promise);
+  mock.client.call.mockImplementationOnce(async () => {
+    expect(mock.nova.close).not.toHaveBeenCalled();
+    return { summary: "Staff requested." };
+  });
+  mock.getView.mockResolvedValue({
+    session: { id: "voice-unit", fence: 3, needs_staff_review: true },
+  });
+  const http = await postAction("/api/lane/tool", {
+    name: "request_staff_help",
+    arguments: { reason: "assistance" },
+  });
+  try {
+    await vi.waitFor(() => expect(mock.nova.drain).toHaveBeenCalledOnce());
+    expect(mock.client.call).toHaveBeenCalledWith("request_staff_help", {
+      reason: "assistance",
+    });
+    drain.resolve();
+    expect((await http.response).status).toBe(200);
+    expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  } finally {
+    drain.resolve();
+    await http.close();
+  }
 });
 it("customer reset waits for voice tools and lease cleanup before checking the original proposal", async () => {
   vi.useRealTimers();

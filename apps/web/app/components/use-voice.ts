@@ -14,6 +14,7 @@ export function useVoice(
   url: string,
   onCart: () => void,
   onReset?: (proposal: ResetProposal) => void,
+  control?: { fence: number; enabled: boolean },
 ) {
   const [status, setStatus] = useState("Microphone off"),
     [caption, setCaption] = useState(""),
@@ -24,7 +25,10 @@ export function useVoice(
     socket = useRef<WebSocket | null>(null),
     scope = useRef(0),
     onCartRef = useRef(onCart),
-    onResetRef = useRef(onReset);
+    onResetRef = useRef(onReset),
+    controlKey = useRef("");
+  const key = `${sessionId}:${epoch}:${control?.fence}:${control?.enabled ?? true}`;
+  controlKey.current = key;
   onCartRef.current = onCart;
   onResetRef.current = onReset;
   const stop = useCallback(() => {
@@ -41,12 +45,12 @@ export function useVoice(
   useEffect(() => {
     stop();
     return stop;
-  }, [sessionId, epoch, stop]);
+  }, [key, stop]);
   const start = async () => {
     stop();
-    if (!sessionId) return;
+    if (!sessionId || control?.enabled === false) return;
     const local = scope.current;
-    const current = () => local === scope.current;
+    const current = () => local === scope.current && key === controlKey.current;
     // Permission/startup must be cancellable, before a socket can open.
     setActive(true);
     setPending(true);
@@ -163,6 +167,13 @@ export function useVoice(
           if (!msg || typeof msg !== "object" || Array.isArray(msg))
             throw new Error("Invalid voice event");
           if (msg.session_id !== sessionId || msg.epoch !== epoch) return;
+          if (
+            typeof msg.fence === "number" &&
+            Number.isSafeInteger(msg.fence) &&
+            control &&
+            msg.fence !== control.fence
+          )
+            return;
           if (msg.type === "ready") {
             ready = true;
             setPending(false);

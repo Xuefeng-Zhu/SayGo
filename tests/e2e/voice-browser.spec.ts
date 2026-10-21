@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./operator-fixture";
 
 test("software-only capture, PCM framing, playback interruption and stop (NO provider)", async ({
   page,
@@ -85,8 +85,6 @@ test("software-only capture, PCM framing, playback interruption and stop (NO pro
   });
   await page.goto("/lane/lane-1");
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Password", { exact: true }).fill("harbor-demo-only");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Begin customer session" }).click();
   await page.getByRole("button", { name: "Start example order" }).click();
   await expect(page.locator(".order-line")).toHaveCount(3);

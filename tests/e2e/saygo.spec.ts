@@ -1,11 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./operator-fixture";
 import { mkdir, writeFile } from "node:fs/promises";
 const evidence = process.env.SAYGO_E2E_EVIDENCE_DIR ?? "docs/evidence";
 async function start(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/lane/lane-1");
-  await page.getByLabel("Password", { exact: true }).fill("harbor-demo-only");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Begin customer session" }).click();
   await expect(
     page.getByRole("heading", { name: "Your order", exact: true }),
@@ -167,6 +165,93 @@ test("staff takeover preserves cart and allows controlled correction", async ({
     ),
   ).toBe(true);
 });
+test("control changes close stale editors; a departed customer's staff editor cannot follow the next draft", async ({
+  page,
+  context,
+}) => {
+  await start(page);
+  await page.getByRole("button", { name: "Start example order" }).click();
+  await page
+    .getByRole("button", {
+      name: "Edit Harbor Cheeseburger No onions",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  const crew = await context.newPage();
+  await crew.goto("/crew");
+  let takeoverRequests = 0;
+  crew.on("request", (request) => {
+    if (
+      request.url().endsWith("/api/crew/action") &&
+      request.postDataJSON()?.action === "takeover"
+    )
+      takeoverRequests++;
+  });
+  // Two synchronous clicks exercise the ref guard, before disabled re-renders.
+  await crew
+    .getByRole("button", { name: "Take control", exact: true })
+    .evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
+  await expect(
+    page.getByRole("heading", { name: "You’re with our crew." }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(takeoverRequests).toBe(1);
+  await expect(
+    page.getByRole("button", { name: "Undo last change", exact: true }),
+  ).toBeDisabled();
+  await crew
+    .getByRole("button", {
+      name: "Edit Harbor Cheeseburger No onions",
+      exact: true,
+    })
+    .click();
+  await crew.getByLabel("No cheese", { exact: true }).check();
+  await crew.getByRole("button", { name: "Save changes", exact: true }).click();
+  await crew
+    .getByRole("button", { name: "Release to SayGo", exact: true })
+    .click();
+  await expect(
+    page.getByText("No onions · No cheese", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Confirm order", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "You’re back in control. Check the draft, then start voice when you’re ready.",
+    ),
+  ).toBeVisible();
+  await crew.getByRole("button", { name: "Take control", exact: true }).click();
+  await crew
+    .getByLabel("Staff message to the customer")
+    .fill("Previous customer only");
+  await crew.getByRole("button", { name: "Add an item", exact: true }).click();
+  await crew
+    .locator(".menu-item")
+    .filter({ has: crew.getByText("Lemonade", { exact: true }) })
+    .click();
+  await expect(crew.getByRole("dialog")).toBeVisible();
+  await page.getByText("Operator controls", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Vehicle departed", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Begin customer session", exact: true })
+    .click();
+  await expect(crew.getByRole("dialog")).toHaveCount(0);
+  await expect(crew.getByLabel("Staff message to the customer")).toHaveValue(
+    "",
+  );
+  await expect(
+    crew.getByRole("button", { name: "Add an item", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".order-line")).toHaveCount(0);
+});
 test("stock change invalidates review, blocks confirmation, then recovers", async ({
   page,
   context,
@@ -224,4 +309,42 @@ test("stock change invalidates review, blocks confirmation, then recovers", asyn
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("a failed draft save preserves selected modifiers for an explicit retry", async ({
+  page,
+}) => {
+  await start(page);
+  await page.getByRole("button", { name: "Start example order" }).click();
+  await page
+    .getByRole("button", {
+      name: "Edit Harbor Cheeseburger No onions",
+      exact: true,
+    })
+    .click();
+  await page.getByLabel("No cheese", { exact: true }).check();
+  let failNext = true;
+  await page.route("**/api/lane/tool", async (route) => {
+    if (
+      route.request().postDataJSON()?.name === "apply_cart_changes" &&
+      failNext
+    ) {
+      failNext = false;
+      await route.fulfill({
+        status: 503,
+        json: { error: "Synthetic save failure; try again." },
+      });
+    } else await route.continue();
+  });
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.locator(".global-error[role=alert]")).toContainText(
+    "Synthetic save failure",
+  );
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByLabel("No cheese", { exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByText("No onions · No cheese", { exact: true }),
+  ).toBeVisible();
 });

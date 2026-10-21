@@ -19,11 +19,13 @@ export function CorrectionReceipt({
   receipt,
   disabled,
   voiceActive,
+  disabledReason,
   undo,
 }: {
   receipt: CartReceipt;
   disabled: boolean;
   voiceActive: boolean;
+  disabledReason?: string;
   undo: () => void;
 }) {
   const delta = receipt.total_delta_cents;
@@ -40,8 +42,11 @@ export function CorrectionReceipt({
                 : "Order updated"}
           </h2>
         </div>
-        {receipt.undo_available && (
-          <button disabled={disabled || voiceActive} onClick={undo}>
+        {receipt.kind !== "undo" && (
+          <button
+            disabled={!receipt.undo_available || disabled || voiceActive}
+            onClick={undo}
+          >
             Undo last change
           </button>
         )}
@@ -70,6 +75,9 @@ export function CorrectionReceipt({
       </p>
       {voiceActive && receipt.undo_available && (
         <p className="small">Stop live voice to undo this change.</p>
+      )}
+      {!voiceActive && disabled && receipt.undo_available && disabledReason && (
+        <p className="small">{disabledReason}</p>
       )}
       {!receipt.undo_available && receipt.undo_unavailable_reason && (
         <p className="small">{receipt.undo_unavailable_reason}</p>

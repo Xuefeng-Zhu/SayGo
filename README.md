@@ -42,6 +42,8 @@ Open [the order board](http://localhost:3100/lane/lane-1), sign in as **admin** 
 
 Draft changes show a persistent before/after receipt with **Undo last change**. Eligible sandwich + medium fries + drink selections show exact meal savings, applied when the customer selects **Apply meal savings**. Try **Can you make this cheaper?** under More example phrases. [Behavior and API details](docs/draft-improvements.md).
 
+**Ask staff** pauses automated ordering and voice so an operator can handle the draft. Returning control never submits an order or restarts voice automatically; an accepted ticket cannot be undone. See the [Undo and takeover walkthrough](docs/undo-and-takeover.md).
+
 | Page                                        | Purpose                                                                                                                                                |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [Crew](http://localhost:3100/crew)          | Take over a session, edit a draft and send customer-facing staff messages.                                                                             |

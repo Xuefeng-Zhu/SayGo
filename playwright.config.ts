@@ -9,6 +9,7 @@ if (qaPort && (!runtimePort || qaPort === runtimePort))
 const origin = `http://localhost:${qaPort || 3100}`;
 export default defineConfig({
   testDir: "tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: false,
   workers: 1,
   timeout: 45000,
@@ -16,7 +17,9 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: origin,
-    launchOptions: { args: ["--mute-audio", "--use-fake-device-for-media-stream"] },
+    launchOptions: {
+      args: ["--mute-audio", "--use-fake-device-for-media-stream"],
+    },
     viewport: { width: 1536, height: 1024 },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

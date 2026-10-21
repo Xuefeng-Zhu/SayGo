@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./operator-fixture";
 import { mkdir } from "node:fs/promises";
 import type { View } from "@saygo/contracts";
 
@@ -9,8 +9,6 @@ async function start(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/lane/lane-1");
   await expect(page).toHaveTitle("SayGo · Harbor Burger");
-  await page.getByLabel("Password", { exact: true }).fill("harbor-demo-only");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Begin customer session" }).click();
   await expect(
     page.getByRole("heading", { name: "Your order", exact: true }),

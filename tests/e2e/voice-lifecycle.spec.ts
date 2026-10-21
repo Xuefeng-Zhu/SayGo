@@ -1,4 +1,9 @@
-import { test, expect, type Page, type WebSocketRoute } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Page,
+  type WebSocketRoute,
+} from "./operator-fixture";
 import type { View } from "@saygo/contracts";
 
 type CaptureMode = "ready" | "pending" | "denied";
@@ -131,8 +136,6 @@ async function prepare(page: Page, mode: CaptureMode = "ready") {
     send({ type: "ready" });
   });
   await page.goto("/lane/lane-1");
-  await page.getByLabel("Password", { exact: true }).fill("harbor-demo-only");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Begin customer session" }).click();
   await expect(
     page.getByRole("heading", { name: "Your order", exact: true }),
@@ -179,6 +182,105 @@ async function depart(page: Page) {
 test.afterEach(async ({ page }) => {
   if (!page.isClosed())
     await page.evaluate(() => window.saygoLifecycle?.close());
+});
+
+test("takeover and release between polls cancel pending capture; resume requires a fresh click", async ({
+  page,
+}) => {
+  const qa = await prepare(page, "pending");
+  let visible = await draft(page);
+  await page.route("**/api/lane/state", (route) =>
+    route.fulfill({ json: visible }),
+  );
+  await start(page).click();
+  await expect(
+    page.getByText("Requesting microphone permission…"),
+  ).toBeVisible();
+  const action = async (name: "takeover" | "release", view: View) => {
+    const response = await page.request.post("/api/crew/action", {
+      headers: { Origin: new URL(page.url()).origin },
+      data: {
+        session_id: view.session.id,
+        expected_fence: view.session.fence,
+        request_id: crypto.randomUUID(),
+        action: name,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    return draft(page);
+  };
+  const owned = await action("takeover", visible);
+  const resumed = await action("release", owned);
+  expect(resumed.session.owner).toBe("ai");
+  expect(resumed.session.fence).toBeGreaterThan(visible.session.fence);
+  // The customer sees only the final AI-owned view, never the intervening
+  // staff-owned view. The changed fence must still invalidate old capture.
+  visible = resumed;
+  await expect(start(page)).toBeVisible();
+  await page.evaluate(() => window.saygoLifecycle.resolve(0));
+  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+  expect(qa.peers).toHaveLength(0);
+  expect(await page.evaluate(() => window.saygoLifecycle.requests.length)).toBe(
+    1,
+  );
+  await page.evaluate(() => {
+    window.saygoLifecycle.mode = "ready";
+  });
+  await start(page).click();
+  await listening(page);
+  await expect.poll(() => tracks(page)).toEqual(["ended", "live"]);
+  await stop(page).click();
+  expect(qa.errors).toEqual([]);
+});
+
+test("Ask staff stops capture immediately while help is pending and prevents duplicate requests", async ({
+  page,
+}) => {
+  const qa = await prepare(page);
+  await page.getByRole("button", { name: "Start example order" }).click();
+  await start(page).click();
+  await listening(page);
+  await expect.poll(() => qa.frames.length).toBeGreaterThan(2);
+  await expect(
+    page.getByRole("button", { name: "Undo last change", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("Stop live voice to undo this change.", { exact: true }),
+  ).toBeVisible();
+  let releaseHelp!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    releaseHelp = resolve;
+  });
+  let requests = 0;
+  await page.route("**/api/lane/tool", async (route) => {
+    if (route.request().postDataJSON()?.name === "request_staff_help") {
+      requests++;
+      await hold;
+    }
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Ask staff", exact: true }).click();
+  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+  await expect(
+    page.getByRole("button", { name: "Ask staff", exact: true }),
+  ).toBeDisabled();
+  expect(requests).toBe(1);
+  releaseHelp();
+  await expect(
+    page.getByRole("heading", { name: "Staff is on the way." }),
+  ).toBeVisible();
+  await expect(start(page)).toHaveCount(0);
+  const before = await draft(page);
+  const undo = page.getByRole("button", {
+    name: "Undo last change",
+    exact: true,
+  });
+  await expect(undo).toBeDisabled();
+  await expect(
+    page.getByText("Staff must finish handling this order first."),
+  ).toBeVisible();
+  expect((await draft(page)).cart).toEqual(before.cart);
+  expect(qa.errors).toEqual([]);
 });
 
 for (const lateOutcome of ["reject", "resolve"] as const) {
@@ -424,6 +526,11 @@ async function draft(page: Page): Promise<View> {
   return response.json() as Promise<View>;
 }
 async function resetProposal(page: Page) {
+  // A click resolves before the fixture's write finishes. Wait for the UI's
+  // action barrier so this direct API request uses the committed cart version.
+  await expect(
+    page.getByRole("button", { name: "Start over", exact: true }),
+  ).toBeEnabled();
   const current = await draft(page);
   const response = await page.request.post("/api/lane/tool", {
     headers: { origin: new URL(page.url()).origin },

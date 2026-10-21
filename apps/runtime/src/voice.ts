@@ -6,9 +6,28 @@ import { openMcp } from "@saygo/integrations";
 import { NovaSession } from "../../../packages/integrations/src/nova.js";
 import type { VoiceSessionOptions } from "../../../packages/integrations/src/nova.js";
 import { agentToken, cookie } from "./auth.js";
-const active = new Map<string, () => Promise<void>>();
-export async function stopVoice(sessionId: string) {
-  await active.get(sessionId)?.();
+const active = new Map<string, { fence: number; stop: () => Promise<void> }>();
+// A takeover can finish while a previously authorized upgrade is still waiting
+// for its state read. Remember the invalidated generation so it cannot register
+// after stopVoice has returned. Sessions themselves expire after fifteen minutes.
+const invalidated = new Map<string, { before: number; until: number }>();
+export async function stopVoice(sessionId: string, beforeFence?: number) {
+  if (beforeFence !== undefined) {
+    const now = Date.now();
+    for (const [id, entry] of invalidated)
+      if (entry.until <= now) invalidated.delete(id);
+    const previous = invalidated.get(sessionId)?.before ?? 0;
+    invalidated.set(sessionId, {
+      before: Math.max(previous, beforeFence),
+      until: now + 16 * 60000,
+    });
+  }
+  const connection = active.get(sessionId);
+  if (
+    connection &&
+    (beforeFence === undefined || connection.fence < beforeFence)
+  )
+    await connection.stop();
 }
 export function attachVoice(
   server: Server,
@@ -38,6 +57,15 @@ export function attachVoice(
         const view = await getView({ ...scope, actor: "agent" });
         if (view.session.needs_staff_review) throw new Error("Staff review");
         wss.handleUpgrade(req, socket, head, (ws) => {
+          const blocked = invalidated.get(scope.session_id);
+          if (
+            blocked &&
+            blocked.until > Date.now() &&
+            scope.fence < blocked.before
+          ) {
+            ws.close(1008, "Control changed. Start a new voice session.");
+            return;
+          }
           if (active.has(scope.session_id)) {
             ws.close(1008, "One voice connection per customer");
             return;
@@ -58,6 +86,7 @@ export function attachVoice(
             }
           };
           const send = (event: object) => {
+            if (ended) return;
             testing.onEvent?.(event as Record<string, unknown>);
             if (ws.readyState === WebSocket.OPEN) {
               if (ws.bufferedAmount > 256000) {
@@ -69,6 +98,7 @@ export function attachVoice(
                   ...event,
                   session_id: scope.session_id,
                   epoch: scope.epoch,
+                  fence: scope.fence,
                 }),
               );
             }
@@ -94,7 +124,7 @@ export function attachVoice(
                 await cleanup(() => renewing);
                 await cleanup(() => mcp?.close());
                 await cleanup(() => voiceLease(scope.session_id, null));
-                if (active.get(scope.session_id) === stop)
+                if (active.get(scope.session_id)?.stop === stop)
                   active.delete(scope.session_id);
                 await cleanup(() => testing.onEnd?.());
               }
@@ -122,7 +152,7 @@ export function attachVoice(
             stop,
             Math.min(testing.maximumSessionMs ?? 7 * 60000, 7 * 60000),
           );
-          active.set(scope.session_id, stop);
+          active.set(scope.session_id, { fence: scope.fence, stop });
           let windowStart = Date.now(),
             bytes = 0;
           ws.on("message", (data, binary) => {
@@ -169,7 +199,12 @@ export function attachVoice(
               new Date(Date.now() + 20000).toISOString(),
             );
             if (ended) return;
+            // Ownership can change during a slow initial lease/MCP acquisition.
+            await getView({ ...scope, actor: "agent" });
+            if (ended) return;
             mcp = await openMcp(agentToken(scope));
+            if (ended) return;
+            await getView({ ...scope, actor: "agent" });
             if (ended) return;
             nova = new NovaSession(mcp, send, {
               ...testing,
@@ -194,6 +229,8 @@ export function attachVoice(
                     fence: scope.fence,
                   });
                 testing.onTool?.(name, args, result);
+                if (!ended && name === "request_staff_help" && !result.error)
+                  void stopVoice(scope.session_id, scope.fence + 1);
               },
             });
             void nova.start().then(stop, unavailable);

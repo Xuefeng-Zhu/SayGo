@@ -647,6 +647,28 @@ export async function tool(
       return { ...(await view(c)) };
     if (name === "request_staff_help") {
       const a = toolSchemas.request_staff_help.parse(args);
+      const alreadyPending = c.s.needs_staff_review;
+      if (
+        alreadyPending &&
+        (
+          await c.tx.list(
+            "handoffs",
+            (row) =>
+              row.session_id === c.s.id &&
+              !row.resolved &&
+              row.reason === a.reason &&
+              row.concern === (a.concern ?? null),
+          )
+        ).length > 0
+      )
+        return {
+          ...(await view(
+            c,
+            a.reason === "allergy"
+              ? "Staff will review your allergy concern. I cannot guarantee allergen safety."
+              : "Staff has already been requested. Your order is preserved.",
+          )),
+        };
       c.tx.put("handoffs", {
         id: randomUUID(),
         session_id: c.s.id,
@@ -655,13 +677,15 @@ export async function tool(
         resolved: false,
         created_at: new Date().toISOString(),
       });
-      await c.tx.update("interactions", c.s.id, {
-        needs_staff_review: true,
-        fence: c.s.fence + 1,
-      });
-      c.s.needs_staff_review = true;
-      c.s.fence++;
-      await invalidate(c);
+      if (!alreadyPending) {
+        await c.tx.update("interactions", c.s.id, {
+          needs_staff_review: true,
+          fence: c.s.fence + 1,
+        });
+        c.s.needs_staff_review = true;
+        c.s.fence++;
+        await invalidate(c);
+      }
       await audit(c, "handoff_requested", { reason: a.reason });
       return {
         ...(await view(
@@ -740,6 +764,13 @@ export async function tool(
     editable(c);
     await noOrder(c);
     if (name === "apply_cart_changes") {
+      if (scope.actor === "staff")
+        assert(
+          scope.fence === c.s.fence,
+          "FENCED",
+          "Control changed. Refresh before editing the draft.",
+          409,
+        );
       const a = toolSchemas.apply_cart_changes.parse(args);
       const key = `${c.s.id}:${scope.actor}:cart:${a.request_id}`,
         payloadHash = hash(a);
@@ -858,10 +889,15 @@ export async function tool(
     };
   });
 }
+export type StaffActionOptions = {
+  expected_fence: number;
+  request_id: string;
+};
 export async function staffAction(
   scope: Scope,
   action: "takeover" | "release" | "resolve" | "message",
   message?: string,
+  options?: StaffActionOptions,
 ) {
   return withScope(scope, async (c) => {
     assert(
@@ -870,42 +906,82 @@ export async function staffAction(
       "Staff authorization required.",
       403,
     );
-    if (action === "takeover") {
+    const identity = options && {
+      key: `${c.s.id}:staff:${options.request_id}`,
+      payload_hash: draftHash({ action, message: message ?? "", ...options }),
+    };
+    if (identity && options) {
+      const prior = await c.tx.get("idempotency", identity.key);
+      if (prior) {
+        assert(
+          prior.payload_hash === identity.payload_hash,
+          "IDEMPOTENCY_MISMATCH",
+          "This request ID was already used for a different staff action.",
+        );
+        // A delayed retry must return current state, even after control changed
+        // again; it must never repeat an earlier ownership transition.
+        return view(c);
+      }
+      assert(
+        options.expected_fence === c.s.fence,
+        "FENCED",
+        "Control changed. Refresh before taking another staff action.",
+        409,
+      );
+    }
+    let changed = false;
+    if (action === "takeover" && c.s.owner !== "staff") {
       c.s.owner = "staff";
       c.s.fence++;
       await invalidate(c);
+      changed = true;
     }
     if (action === "release") {
       assert(
-        c.s.owner === "staff" && !c.s.needs_staff_review,
+        !c.s.needs_staff_review,
         "STAFF_REVIEW",
         "Resolve the handoff before releasing control.",
       );
-      c.s.owner = "ai";
-      c.s.fence++;
-      await invalidate(c);
+      if (c.s.owner === "staff") {
+        voiceIdle(c);
+        c.s.owner = "ai";
+        c.s.fence++;
+        await invalidate(c);
+        changed = true;
+      }
     }
     if (action === "resolve") {
       assert(c.s.owner === "staff", "TAKEOVER", "Take control first.");
-      for (const row of await c.tx.list(
+      const handoffs = await c.tx.list(
         "handoffs",
         (h) => h.session_id === c.s.id && !h.resolved,
-      ))
+      );
+      for (const row of handoffs)
         await c.tx.update("handoffs", row.id, { resolved: true });
+      changed = c.s.needs_staff_review || handoffs.length > 0;
       c.s.needs_staff_review = false;
-      await invalidate(c);
+      if (changed) await invalidate(c);
     }
     if (action === "message") {
       assert(c.s.owner === "staff", "TAKEOVER", "Take control first.");
-      c.s.staff_message = (message ?? "").slice(0, 300);
+      const next = (message ?? "").slice(0, 300);
+      changed = next !== c.s.staff_message;
+      c.s.staff_message = next;
     }
-    await c.tx.update("interactions", c.s.id, {
-      owner: c.s.owner,
-      fence: c.s.fence,
-      needs_staff_review: c.s.needs_staff_review,
-      staff_message: c.s.staff_message,
-    });
-    await audit(c, `staff_${action}`);
+    if (changed) {
+      await c.tx.update("interactions", c.s.id, {
+        owner: c.s.owner,
+        fence: c.s.fence,
+        needs_staff_review: c.s.needs_staff_review,
+        staff_message: c.s.staff_message,
+      });
+      await audit(c, `staff_${action}`);
+    }
+    if (identity)
+      c.tx.put("idempotency", {
+        ...identity,
+        created_at: new Date().toISOString(),
+      });
     return view(c);
   });
 }

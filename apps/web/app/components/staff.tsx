@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type Command,
   type Line,
@@ -9,58 +9,123 @@ import {
 } from "@saygo/contracts";
 import { api } from "./api";
 import { ItemEditor, MenuPanel, Modal, OrderLines, OrderTotals } from "./order";
+type CrewData = {
+  view: View | null;
+  handoffs: {
+    id: string;
+    reason: string;
+    concern: string | null;
+    resolved: boolean;
+  }[];
+};
+const crewScope = (view: View | null | undefined) =>
+  view
+    ? `${view.session.id}:${view.session.epoch}:${view.session.fence}:${view.session.owner}:${view.session.needs_staff_review}:${view.order?.id ?? ""}`
+    : "";
+const crewEditScope = (view: View) => `${crewScope(view)}:${view.cart_version}`;
 export function Crew() {
-  const [data, setData] = useState<{
-      view: View | null;
-      handoffs: {
-        id: string;
-        reason: string;
-        concern: string | null;
-        resolved: boolean;
-      }[];
-    } | null>(null),
+  const [data, setData] = useState<CrewData | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [edit, setEdit] = useState<{ product: Product; line?: Line } | null>(null),
+    [edit, setEdit] = useState<{
+      product: Product;
+      line?: Line;
+      scope: string;
+    } | null>(null),
     [menu, setMenu] = useState(false);
-  const refresh = useCallback(
-    () =>
-      api<typeof data>("/crew")
-        .then(setData)
-        .catch((e) => setError(e.message)),
-    [],
-  );
+  const currentView = useRef<View | null>(null),
+    request = useRef(0),
+    busyRef = useRef(false),
+    mounted = useRef(true);
+  const refresh = useCallback(async (force = false) => {
+    if (busyRef.current && !force) return;
+    const seq = ++request.current;
+    try {
+      const next = await api<CrewData>("/crew");
+      if (!mounted.current || seq !== request.current) return;
+      const previous = currentView.current;
+      if (
+        previous &&
+        next.view &&
+        previous.session.id === next.view.session.id &&
+        (next.view.session.epoch < previous.session.epoch ||
+          next.view.session.fence < previous.session.fence ||
+          next.view.cart_version < previous.cart_version)
+      )
+        return;
+      if (crewScope(previous) !== crewScope(next.view)) {
+        setEdit(null);
+        setMenu(false);
+        setMessage("");
+        setError("");
+      }
+      currentView.current = next.view;
+      setData(next);
+    } catch (e) {
+      if (mounted.current && seq === request.current)
+        setError((e as Error).message);
+    }
+  }, []);
   useEffect(() => {
+    mounted.current = true;
     void refresh();
     const t = setInterval(() => void refresh(), 1000);
-    return () => clearInterval(t);
+    return () => {
+      mounted.current = false;
+      ++request.current;
+      clearInterval(t);
+    };
   }, [refresh]);
   const v = data?.view;
   const act = async (action: string) => {
-    if (!v) return;
+    if (
+      !v ||
+      busyRef.current ||
+      crewScope(v) !== crewScope(currentView.current)
+    )
+      return;
+    busyRef.current = true;
+    ++request.current;
     setBusy(true);
     try {
       await api("/crew/action", {
         session_id: v.session.id,
+        expected_fence: v.session.fence,
+        request_id: crypto.randomUUID(),
         action,
         ...(action === "message" ? { message } : {}),
       });
       setMessage("");
-      await refresh();
+      await refresh(true);
       setError("");
     } catch (e) {
       setError((e as Error).message);
+      await refresh(true);
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (mounted.current) setBusy(false);
     }
   };
   const change = async (command: Command) => {
-    if (!v) return;
+    if (
+      !v ||
+      !edit ||
+      !currentView.current ||
+      busyRef.current ||
+      v.session.owner !== "staff" ||
+      v.order ||
+      edit.scope !== crewEditScope(v) ||
+      edit.scope !== crewEditScope(currentView.current)
+    )
+      return;
+    busyRef.current = true;
+    ++request.current;
     setBusy(true);
     try {
       await api("/crew/cart", {
         session_id: v.session.id,
+        expected_fence: v.session.fence,
         changes: {
           expected_version: v.cart_version,
           request_id: crypto.randomUUID(),
@@ -68,12 +133,14 @@ export function Crew() {
         },
       });
       setEdit(null);
-      await refresh();
+      await refresh(true);
       setError("");
     } catch (e) {
       setError((e as Error).message);
+      await refresh(true);
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (mounted.current) setBusy(false);
     }
   };
   return (
@@ -98,27 +165,31 @@ export function Crew() {
             <OrderLines
               lines={v.lines}
               onEdit={
-                v.session.owner === "staff" && !v.order
+                v.session.owner === "staff" && !v.order && !busy
                   ? (line) =>
                       setEdit({
                         product: v.menu.products.find(
                           (p) => p.id === line.product_id,
                         )!,
                         line,
+                        scope: crewEditScope(v),
                       })
                   : undefined
               }
             />
             <OrderTotals totals={v.totals} />
             {v.session.owner === "staff" && !v.order && (
-              <button onClick={() => setMenu(true)}>Add an item</button>
+              <button disabled={busy} onClick={() => setMenu(true)}>
+                Add an item
+              </button>
             )}
           </section>
           <aside className="crew-panel">
             <h2>Keep the order moving.</h2>
             <p>
-              Taking control immediately fences out the AI. Customer approval is
-              still required after staff edits.
+              {v.session.owner === "staff"
+                ? "You have control. AI changes and live voice are stopped. Customer screen confirmation is still required after staff edits."
+                : "Take control to pause AI changes and live voice, then help with this draft."}
             </p>
             <div className="button-row">
               <button
@@ -139,6 +210,11 @@ export function Crew() {
                 Release to SayGo
               </button>
             </div>
+            <p className="small" role="status">
+              {v.session.needs_staff_review
+                ? "Handle the customer’s request before releasing control."
+                : "Release returns the draft to the customer. Voice stays off until they choose Start live voice."}
+            </p>
             {v.unresolved_choices.map((i, n) => (
               <div className="notice" key={n}>
                 {i.message}
@@ -176,6 +252,7 @@ export function Crew() {
               <label>
                 Staff message to the customer
                 <textarea
+                  disabled={busy || v.session.owner !== "staff"}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   maxLength={300}
@@ -197,31 +274,35 @@ export function Crew() {
           </aside>
         </div>
       )}
-      {menu && v && (
+      {menu && v && v.session.owner === "staff" && !v.order && (
         <Modal title="Add to this draft" close={() => setMenu(false)}>
           <MenuPanel
             menu={v.menu}
             choose={(product) => {
               setMenu(false);
-              setEdit({ product });
+              setEdit({ product, scope: crewEditScope(v) });
             }}
           />
         </Modal>
       )}
-      {edit && (
-        <ItemEditor
-          product={edit.product}
-          line={edit.line}
-          close={() => setEdit(null)}
-          busy={busy}
-          save={(c) => void change(c)}
-          remove={
-            edit.line
-              ? () => void change({ type: "remove", line_id: edit.line!.id })
-              : undefined
-          }
-        />
-      )}
+      {edit &&
+        v &&
+        edit.scope === crewEditScope(v) &&
+        v.session.owner === "staff" &&
+        !v.order && (
+          <ItemEditor
+            product={edit.product}
+            line={edit.line}
+            close={() => setEdit(null)}
+            busy={busy}
+            save={(c) => void change(c)}
+            remove={
+              edit.line
+                ? () => void change({ type: "remove", line_id: edit.line!.id })
+                : undefined
+            }
+          />
+        )}
     </>
   );
 }

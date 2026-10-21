@@ -20,6 +20,8 @@ import {
   resetDemo,
   updateProduct,
   kitchenTransition,
+  undoCartChange,
+  voiceLease,
 } from "@saygo/domain";
 import {
   openMcp,
@@ -1206,6 +1208,254 @@ describe("DynamoDB, real MCP and durable ordering", () => {
     expect(current.lines).toHaveLength(1);
     expect(current.session.owner).toBe("staff");
     expect(current.session.fence).toBe(1);
+  });
+  it("makes staff transitions idempotent and rejects delayed control actions", async () => {
+    await add();
+    const quote = await review();
+    await approve({ ...scope, actor: "customer" }, quote.id);
+    const staff = { ...scope, actor: "staff" as const };
+    const customer = { ...scope, actor: "customer" as const };
+    const initial = await getView(customer);
+    const takeover = { expected_fence: 0, request_id: randomUUID() };
+    const results = await Promise.all([
+      staffAction(staff, "takeover", undefined, takeover),
+      staffAction(staff, "takeover", undefined, takeover),
+    ]);
+    for (const result of results)
+      expect(result.session).toMatchObject({ owner: "staff", fence: 1 });
+    expect((await getView(customer)).lines).toEqual(initial.lines);
+    expect((await getView(customer)).quote).toBeNull();
+    expect((await store.get("quotes", quote.id))?.valid).toBe(false);
+    expect(
+      await staffAction(staff, "takeover", undefined, {
+        expected_fence: 1,
+        request_id: randomUUID(),
+      }),
+    ).toMatchObject({ session: { owner: "staff", fence: 1 } });
+    const release = { expected_fence: 1, request_id: randomUUID() };
+    await staffAction(staff, "release", undefined, release);
+    expect(
+      await staffAction(staff, "takeover", undefined, takeover),
+    ).toMatchObject({
+      session: { owner: "ai", fence: 2 },
+    });
+    expect((await getView(customer)).last_change?.undo_available).toBe(false);
+    await expect(approve(customer, quote.id)).rejects.toMatchObject({
+      code: "STALE_QUOTE",
+    });
+    await staffAction(staff, "takeover", undefined, {
+      expected_fence: 2,
+      request_id: randomUUID(),
+    });
+    expect(
+      await staffAction(staff, "release", undefined, release),
+    ).toMatchObject({
+      session: { owner: "staff", fence: 3 },
+    });
+    await expect(
+      staffAction(staff, "release", undefined, {
+        expected_fence: 1,
+        request_id: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "FENCED" });
+    await expect(
+      staffAction(staff, "release", undefined, takeover),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_MISMATCH" });
+    expect((await getView(customer)).session).toMatchObject({
+      owner: "staff",
+      fence: 3,
+    });
+    expect(
+      await store.list("audit", (row) => row.kind === "staff_takeover"),
+    ).toHaveLength(2);
+    expect(
+      await store.list("audit", (row) => row.kind === "staff_release"),
+    ).toHaveLength(1);
+  });
+  it("waits for voice cleanup before release and preserves a later voice lease on retry", async () => {
+    const staff = { ...scope, actor: "staff" as const };
+    await staffAction(staff, "takeover", undefined, {
+      expected_fence: 0,
+      request_id: randomUUID(),
+    });
+    await voiceLease(
+      scope.session_id,
+      new Date(Date.now() + 20000).toISOString(),
+    );
+    const release = { expected_fence: 1, request_id: randomUUID() };
+    await expect(
+      staffAction(staff, "release", undefined, release),
+    ).rejects.toMatchObject({ code: "VOICE_PENDING" });
+    expect((await getView(staff)).session).toMatchObject({
+      owner: "staff",
+      fence: 1,
+    });
+    await voiceLease(scope.session_id, null);
+    await staffAction(staff, "release", undefined, release);
+    const until = new Date(Date.now() + 20000).toISOString();
+    await voiceLease(scope.session_id, until);
+    expect(
+      await staffAction(staff, "release", undefined, release),
+    ).toMatchObject({
+      session: { owner: "ai", fence: 2 },
+    });
+    expect(
+      await staffAction(staff, "release", undefined, {
+        expected_fence: 2,
+        request_id: randomUUID(),
+      }),
+    ).toMatchObject({ session: { owner: "ai", fence: 2 } });
+    expect(
+      (await store.get("interactions", scope.session_id))?.voice_until,
+    ).toBe(until);
+  });
+  it("fences staff edits from a previous takeover even when the cart version is unchanged", async () => {
+    await add();
+    const staff = { ...scope, actor: "staff" as const };
+    await staffAction(staff, "takeover");
+    const previousStaff = { ...staff, fence: 1 };
+    await staffAction(staff, "release");
+    await staffAction(staff, "takeover");
+    const change = {
+      expected_version: 1,
+      request_id: randomUUID(),
+      commands: [{ type: "add", product_id: "classic", choices: {} }],
+    };
+    await expect(
+      tool(previousStaff, "apply_cart_changes", change),
+    ).rejects.toMatchObject({ code: "FENCED" });
+    expect((await getView(staff)).lines).toHaveLength(1);
+    await tool({ ...staff, fence: 3 }, "apply_cart_changes", change);
+    expect((await getView(staff)).lines).toHaveLength(2);
+  });
+  it("keeps accepted orders and kitchen receipts unchanged through takeover and resume", async () => {
+    await add();
+    await submit();
+    await runOneJob();
+    const customer = { ...scope, actor: "customer" as const };
+    const before = await getView(customer);
+    expect(before.order?.status).toBe("accepted");
+    const persisted = {
+      orders: await store.list("orders"),
+      receipts: await store.list("pos_receipts"),
+      approvals: await store.list("approvals"),
+      jobs: await store.list("jobs"),
+    };
+    const staff = { ...scope, actor: "staff" as const };
+    await staffAction(staff, "takeover", undefined, {
+      expected_fence: 0,
+      request_id: randomUUID(),
+    });
+    await staffAction(staff, "release", undefined, {
+      expected_fence: 1,
+      request_id: randomUUID(),
+    });
+    const after = await getView(customer);
+    expect(after.order).toEqual(before.order);
+    expect(after.lines).toEqual(before.lines);
+    expect(after.cart_version).toBe(before.cart_version);
+    expect(after.last_change?.undo_available).toBe(false);
+    await expect(
+      undoCartChange(customer, {
+        receipt_id: before.last_change!.id,
+        expected_version: before.cart_version,
+        request_id: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "ORDER_LOCKED" });
+    expect({
+      orders: await store.list("orders"),
+      receipts: await store.list("pos_receipts"),
+      approvals: await store.list("approvals"),
+      jobs: await store.list("jobs"),
+    }).toEqual(persisted);
+  });
+  it("requires resolving the handoff and a new customer approval after resume", async () => {
+    await add();
+    const previousQuote = await review();
+    const customer = { ...scope, actor: "customer" as const };
+    await approve(customer, previousQuote.id);
+    await tool(scope, "request_staff_help", { reason: "allergy" });
+    const requested = await getView(customer);
+    const handoffs = await store.list("handoffs");
+    await tool(customer, "request_staff_help", {
+      reason: "allergy",
+    });
+    expect((await getView(customer)).session).toEqual(requested.session);
+    expect(await store.list("handoffs")).toEqual(handoffs);
+    const staff = { ...scope, actor: "staff" as const };
+    await staffAction(staff, "takeover", undefined, {
+      expected_fence: 1,
+      request_id: randomUUID(),
+    });
+    const release = { expected_fence: 2, request_id: randomUUID() };
+    await expect(
+      staffAction(staff, "release", undefined, release),
+    ).rejects.toMatchObject({ code: "STAFF_REVIEW" });
+    await staffAction(staff, "resolve", undefined, {
+      expected_fence: 2,
+      request_id: randomUUID(),
+    });
+    await staffAction(staff, "release", undefined, release);
+    expect(await store.list("handoffs", (row) => !row.resolved)).toHaveLength(
+      0,
+    );
+    await expect(
+      tool(scope, "prepare_order_review", {
+        expected_version: 1,
+        request_id: randomUUID(),
+      }),
+    ).rejects.toMatchObject({ code: "FENCED" });
+    await expect(approve(customer, previousQuote.id)).rejects.toMatchObject({
+      code: "STALE_QUOTE",
+    });
+    const fresh = { ...(await scopeForToken(token)), actor: "agent" as const };
+    const nextQuote = v(
+      await tool(fresh, "prepare_order_review", {
+        expected_version: 1,
+        request_id: randomUUID(),
+      }),
+    ).quote!;
+    await expect(
+      tool(fresh, "submit_order", { quote_id: nextQuote.id }),
+    ).rejects.toMatchObject({ code: "CONSENT_REQUIRED" });
+    expect(await store.list("orders")).toHaveLength(0);
+    await approve(customer, nextQuote.id);
+    await tool(fresh, "submit_order", { quote_id: nextQuote.id });
+    expect(await store.list("orders")).toHaveLength(1);
+  });
+  it("deduplicates repeated handoffs but retains a new allergy concern without refencing", async () => {
+    await add();
+    const customer = { ...scope, actor: "customer" as const };
+    await tool(customer, "request_staff_help", { reason: "assistance" });
+    const pending = await getView(customer);
+    const allergy = {
+      reason: "allergy",
+      concern: "Fictional peanut cross-contact question",
+    };
+    const result = v(await tool(customer, "request_staff_help", allergy));
+    expect(result.summary).toContain("cannot guarantee allergen safety");
+    expect(result.session).toEqual(pending.session);
+    const handoffs = await store.list("handoffs");
+    expect(handoffs).toHaveLength(2);
+    expect(handoffs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "assistance",
+          concern: null,
+          resolved: false,
+        }),
+        expect.objectContaining({ ...allergy, resolved: false }),
+      ]),
+    );
+    await tool(customer, "request_staff_help", allergy);
+    expect(await store.list("handoffs")).toEqual(handoffs);
+    expect((await getView(customer)).session).toEqual(pending.session);
+    expect(JSON.stringify(await getView(customer))).not.toContain(
+      allergy.concern,
+    );
+    expect(
+      await store.list("audit", (row) => row.kind === "handoff_requested"),
+    ).toHaveLength(2);
   });
   it("allergy pauses approval, protects concern and requires staff resolution", async () => {
     await add();

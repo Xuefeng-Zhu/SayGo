@@ -204,11 +204,17 @@ app.post("/api/lane/tool", async (req, res) => {
     403,
   );
   const scope = await laneScope(req);
-  if (["prepare_order_review", "request_staff_help"].includes(a.name))
-    await stopVoice(scope.session_id);
+  if (a.name === "prepare_order_review") await stopVoice(scope.session_id);
   const mcp = await openMcp(agentToken(scope));
   try {
-    res.json(await laneResult(scope, await mcp.call(a.name, a.arguments)));
+    const result = await mcp.call(a.name, a.arguments);
+    if (a.name === "request_staff_help") {
+      // Fence AI writes first, including dispatched tools, then wait for capture
+      // and provider/tool cleanup. Do not report a completed handoff early.
+      const current = await getView(scope);
+      await stopVoice(scope.session_id, current.session.fence);
+    }
+    res.json(await laneResult(scope, result));
   } finally {
     await mcp.close();
   }
@@ -275,6 +281,8 @@ app.post("/api/crew/action", async (req, res) => {
       session_id: z.string().uuid(),
       action: z.enum(["takeover", "release", "resolve", "message"]),
       message: z.string().max(300).optional(),
+      expected_fence: z.number().int().nonnegative(),
+      request_id: z.string().uuid(),
     })
     .strict()
     .parse(req.body);
@@ -284,13 +292,21 @@ app.post("/api/crew/action", async (req, res) => {
     "SESSION",
     "This customer has departed. Refresh.",
   );
-  res.json(await staffAction(scope, a.action, a.message));
+  const result = await staffAction(scope, a.action, a.message, {
+    expected_fence: a.expected_fence,
+    request_id: a.request_id,
+  });
+  if (a.action === "takeover" && result.session.owner === "staff") {
+    await stopVoice(scope.session_id, result.session.fence);
+    res.json(await getView(scope));
+  } else res.json(result);
 });
 app.post("/api/crew/cart", async (req, res) => {
   await staff(req, ["admin", "crew"]);
   const a = z
     .object({
       session_id: z.string().uuid(),
+      expected_fence: z.number().int().nonnegative(),
       changes: toolSchemas.apply_cart_changes,
     })
     .strict()
@@ -301,7 +317,13 @@ app.post("/api/crew/cart", async (req, res) => {
     "SESSION",
     "This customer has departed.",
   );
-  res.json(await tool(scope, "apply_cart_changes", a.changes));
+  res.json(
+    await tool(
+      { ...scope, fence: a.expected_fence },
+      "apply_cart_changes",
+      a.changes,
+    ),
+  );
 });
 app.get("/api/kitchen", async (req, res) => {
   await staff(req);
