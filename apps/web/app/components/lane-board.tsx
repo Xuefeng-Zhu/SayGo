@@ -10,7 +10,7 @@ import {
 import { api, ApiError } from "./api";
 import { Header, Footer, Login } from "./shell";
 import { ItemEditor, MenuPanel, Modal, OrderLines, OrderTotals } from "./order";
-import { useVoice } from "./use-voice";
+import { useVoice, type ResetProposal } from "./use-voice";
 import { CorrectionReceipt, MealSavingsCard } from "./draft-improvements";
 type Config = {
   demo: boolean;
@@ -18,6 +18,14 @@ type Config = {
   voice_url: string;
   fixtures: { id: string; text: string }[];
 };
+const resetMatches = (proposal: ResetProposal, view: View) =>
+  proposal.session_id === view.session.id &&
+  proposal.epoch === view.session.epoch &&
+  proposal.fence === view.session.fence &&
+  proposal.cart_version === view.cart_version &&
+  view.session.owner === "ai" &&
+  !view.session.needs_staff_review &&
+  !view.order;
 export function LaneBoard() {
   const [view, setView] = useState<View | null>(null),
     [config, setConfig] = useState<Config | null>(null),
@@ -30,12 +38,13 @@ export function LaneBoard() {
     ),
     [menu, setMenu] = useState(false),
     [edit, setEdit] = useState<{ product: Product; line?: Line } | null>(null),
-    [reset, setReset] = useState<string | null>(null),
+    [reset, setReset] = useState<ResetProposal | null>(null),
     [text, setText] = useState("");
   const request = useRef(0),
     mounted = useRef(true),
     session = useRef<string | undefined>(undefined),
-    lastQuote = useRef<string | undefined>(undefined);
+    lastQuote = useRef<string | undefined>(undefined),
+    currentView = useRef<View | null>(null);
   const accept = useCallback((v: View) => {
     if (session.current !== v.session.id) {
       session.current = v.session.id;
@@ -49,7 +58,22 @@ export function LaneBoard() {
         "Your review changed or expired. Please review the current order again.",
       );
     }
+    // A proposal may arrive just before its cart refresh. Keep it hidden until
+    // that exact version is visible, and discard it if state moves past it.
+    setReset((proposal) =>
+      proposal &&
+      (proposal.session_id !== v.session.id ||
+        proposal.epoch !== v.session.epoch ||
+        proposal.fence !== v.session.fence ||
+        proposal.cart_version < v.cart_version ||
+        v.session.owner !== "ai" ||
+        v.session.needs_staff_review ||
+        v.order)
+        ? null
+        : proposal,
+    );
     lastQuote.current = v.quote?.id;
+    currentView.current = v;
     setView(v);
   }, []);
   const refresh = useCallback(async () => {
@@ -64,7 +88,9 @@ export function LaneBoard() {
         e instanceof ApiError &&
         e.status === 401
       ) {
+        currentView.current = null;
         setView(null);
+        setReset(null);
         session.current = undefined;
       }
     } finally {
@@ -76,6 +102,22 @@ export function LaneBoard() {
     view?.session.epoch,
     config?.voice_url ?? "",
     () => void refresh(),
+    (proposal) => {
+      const current = currentView.current;
+      if (
+        !current ||
+        proposal.session_id !== current.session.id ||
+        proposal.epoch !== current.session.epoch ||
+        proposal.fence !== current.session.fence ||
+        proposal.cart_version < current.cart_version ||
+        current.session.owner !== "ai" ||
+        current.session.needs_staff_review ||
+        current.order
+      )
+        return;
+      setReset(proposal);
+      void refresh();
+    },
   );
   useEffect(() => {
     mounted.current = true;
@@ -114,7 +156,14 @@ export function LaneBoard() {
       if (seq === request.current && result.session) accept(result);
       if (result.session?.id === session.current) {
         if (result.summary) setSummary(result.summary);
-        if (result.reset_token) setReset(result.reset_token);
+        if (result.reset_token)
+          setReset({
+            reset_token: result.reset_token,
+            cart_version: result.cart_version,
+            session_id: result.session.id,
+            epoch: result.session.epoch,
+            fence: result.session.fence,
+          });
       }
       await refresh();
       return result;
@@ -156,6 +205,7 @@ export function LaneBoard() {
     try {
       await api("/lane/depart", {});
       ++request.current;
+      currentView.current = null;
       setView(null);
       setSummary("");
       setEdit(null);
@@ -386,7 +436,7 @@ export function LaneBoard() {
                     </p>
                     <button
                       className="primary wide"
-                      disabled={locked}
+                      disabled={locked || voice.active}
                       onClick={() =>
                         void act("/lane/confirm", { quote_id: view.quote!.id })
                       }
@@ -429,6 +479,22 @@ export function LaneBoard() {
                     )}
                   </>
                 ) : null}
+                {!view.order &&
+                  view.lines.length > 0 &&
+                  view.session.owner === "ai" &&
+                  !view.session.needs_staff_review && (
+                    <button
+                      className="text-button wide"
+                      disabled={locked}
+                      onClick={() =>
+                        void call("cancel_draft_order", {
+                          expected_version: view.cart_version,
+                        })
+                      }
+                    >
+                      Start over
+                    </button>
+                  )}
               </section>
               {!view.order &&
                 view.lines.length > 0 &&
@@ -563,18 +629,6 @@ export function LaneBoard() {
                     <button disabled={busy} onClick={() => void depart()}>
                       Vehicle departed
                     </button>
-                    {!view.order && (
-                      <button
-                        disabled={locked}
-                        onClick={() =>
-                          void call("cancel_draft_order", {
-                            expected_version: view.cart_version,
-                          })
-                        }
-                      >
-                        Start over
-                      </button>
-                    )}
                     <Link href="/crew">Crew console</Link>
                   </details>
                 </div>
@@ -617,20 +671,33 @@ export function LaneBoard() {
           }
         />
       )}
-      {reset && view && (
+      {reset && view && resetMatches(reset, view) && (
         <Modal title="Start this draft over?" close={() => setReset(null)}>
           <p>
             This removes every item in this draft. Submitted kitchen orders are
             not cancelled.
           </p>
+          {voice.active && (
+            <p className="small">
+              Confirming stops live voice and waits for pending changes before
+              clearing this draft.
+            </p>
+          )}
           <button
             className="danger"
-            disabled={busy}
+            disabled={busy || voice.pending}
             onClick={() => {
+              const proposal = reset;
+              voice.stop();
               void act("/lane/reset", {
-                expected_version: view.cart_version,
-                reset_token: reset,
-              }).then(() => setReset(null));
+                expected_version: proposal.cart_version,
+                reset_token: proposal.reset_token,
+              }).then((result) => {
+                if (result)
+                  setReset((current) =>
+                    current === proposal ? null : current,
+                  );
+              });
             }}
           >
             Confirm reset

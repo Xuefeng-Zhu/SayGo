@@ -17,6 +17,29 @@ import {
   NovaSession,
   type VoiceEvent,
 } from "../../packages/integrations/src/nova.js";
+it("aborts a full input queue without throwing from close or accepting later input", () => {
+  vi.useFakeTimers();
+  try {
+    const session = new NovaSession(
+      { tools: [], call: async () => ({}) },
+      () => {},
+    );
+    const internals = session as unknown as {
+      client: { destroy(): void };
+      controller: AbortController;
+    };
+    const destroy = vi.spyOn(internals.client, "destroy");
+    for (let i = 0; i < 120; i++) session.audio(Buffer.alloc(1024));
+    expect(() => session.close()).not.toThrow();
+    expect(internals.controller.signal.aborted).toBe(true);
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(() => session.audio(Buffer.alloc(1024))).not.toThrow();
+    expect(() => session.close()).not.toThrow();
+  } finally {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  }
+});
 it("cleans up and reports unknown usage when the provider rejects stream startup", async () => {
   const onStreamEnd = vi.fn();
   const onProviderRequest = vi.fn();
@@ -147,7 +170,7 @@ it("provider interruption drops delayed output from the old completion", () => {
   );
   session.handle("completionStart", { completionId: "old" });
   session.handle("audioOutput", { completionId: "old", content: "AAA=" });
-  session.interrupt();
+  expect(session.interrupt()).toBe(1);
   session.handle("audioOutput", { completionId: "old", content: "AAA=" });
   session.handle("completionStart", { completionId: "new" });
   session.handle("audioOutput", { completionId: "new", content: "AAA=" });
@@ -207,5 +230,201 @@ it("resumes new audio content under a reused completion ID after barge-in", () =
         e.type === "caption" && e.role === "USER" && e.text === "A new request",
     ),
   ).toBe(true);
+  session.close();
+});
+
+it("does not advertise order submission to a live voice model", async () => {
+  const session = new NovaSession(
+    {
+      tools: [
+        { name: "get_cart", inputSchema: { type: "object" as const } },
+        { name: "submit_order", inputSchema: { type: "object" as const } },
+        {
+          name: "apply_cart_changes",
+          inputSchema: {
+            type: "object" as const,
+            properties: { request_id: { type: "string" } },
+            required: ["request_id"],
+          },
+        },
+      ],
+      call: async () => ({}),
+    },
+    () => {},
+  );
+  const client = (
+    session as unknown as {
+      client: { send(command: unknown): Promise<unknown> };
+    }
+  ).client;
+  const send = vi.spyOn(client, "send").mockResolvedValue({
+    body: [],
+  });
+  await session.start();
+  const command = send.mock.calls[0][0] as unknown as {
+    input: { body: AsyncIterable<{ chunk: { bytes: Uint8Array } }> };
+  };
+  const sent: { event: Record<string, unknown> }[] = [];
+  for await (const chunk of command.input.body)
+    sent.push(JSON.parse(Buffer.from(chunk.chunk.bytes).toString()));
+  const prompt = sent.find((e) => e.event.promptStart)?.event.promptStart as {
+    toolConfiguration: {
+      tools: { toolSpec: { name: string; inputSchema: { json: string } } }[];
+    };
+  };
+  expect(prompt.toolConfiguration.tools.map((t) => t.toolSpec.name)).toEqual([
+    "get_cart",
+    "apply_cart_changes",
+  ]);
+  const cartSchema = JSON.parse(
+    prompt.toolConfiguration.tools[1].toolSpec.inputSchema.json,
+  );
+  expect(cartSchema.properties).not.toHaveProperty("request_id");
+  expect(cartSchema.required).not.toContain("request_id");
+});
+it("blocks an unadvertised submission even if the provider requests it", async () => {
+  const call = vi.fn(async () => ({}));
+  const session = new NovaSession({ tools: [], call }, () => {});
+  const send = vi.spyOn(
+    session as unknown as {
+      send(name: string, data: Record<string, unknown>): void;
+    },
+    "send",
+  );
+  session.handle("toolUse", {
+    contentId: "spoken-yes",
+    toolName: "submit_order",
+    toolUseId: "submit-1",
+    content: JSON.stringify({ quote_id: "quote-from-review" }),
+  });
+  session.handle("contentEnd", {
+    contentId: "spoken-yes",
+    stopReason: "TOOL_USE",
+  });
+  await session.drain();
+  expect(call).not.toHaveBeenCalled();
+  const response = send.mock.calls.find(([name]) => name === "toolResult")![1];
+  expect(JSON.parse(response.content as string)).toMatchObject({
+    error: { code: "VOICE_PENDING", next_action: "wait_for_voice" },
+  });
+  session.close();
+});
+
+it("owns transport IDs and canonicalizes identical retries without conflating new edits", async () => {
+  const call = vi.fn(
+    async (_name: string, _args: Record<string, unknown>) => ({}),
+  );
+  const session = new NovaSession({ tools: [], call }, () => {});
+  const run = async (id: string, args: Record<string, unknown>) => {
+    session.handle("toolUse", {
+      contentId: id,
+      toolName: "apply_cart_changes",
+      toolUseId: id,
+      content: JSON.stringify(args),
+    });
+    session.handle("contentEnd", { contentId: id, stopReason: "TOOL_USE" });
+    await session.drain();
+  };
+  const args = {
+    expected_version: 0,
+    request_id: "not-a-uuid",
+    commands: [
+      {
+        type: "add",
+        product_id: "classic",
+        choices: { remove: ["onions"], extra: ["cheese"] },
+      },
+    ],
+  };
+  await run("first", args);
+  await run("missing-reordered", {
+    commands: [
+      {
+        choices: { extra: ["cheese"], remove: ["onions"] },
+        product_id: "classic",
+        type: "add",
+      },
+    ],
+    expected_version: 0,
+  });
+  await run("different-invalid", { ...args, request_id: "other-invalid-id" });
+  await run("changed", { ...args, expected_version: 1 });
+  const supplied = "8a868a30-777f-4b24-a4fd-d4f7311bc633";
+  await run("model-supplied", { ...args, request_id: supplied });
+  const ids = call.mock.calls.map(([, input]) => input.request_id);
+  expect(ids[0]).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  expect(ids[1]).toBe(ids[0]);
+  expect(ids[2]).toBe(ids[0]);
+  expect(ids[3]).not.toBe(ids[0]);
+  expect(ids[4]).toBe(ids[0]);
+  expect(ids[4]).not.toBe(supplied);
+  expect(JSON.stringify(call.mock.calls[1][1])).toBe(
+    JSON.stringify(call.mock.calls[0][1]),
+  );
+  session.close();
+});
+it("sends the reset token only to the scoped UI bridge and labels it a proposal", async () => {
+  const token = "a".repeat(64);
+  const onTool = vi.fn();
+  const session = new NovaSession(
+    {
+      tools: [],
+      call: async () => ({ cart_version: 2, reset_token: token }),
+    },
+    () => {},
+    { onTool },
+  );
+  const send = vi.spyOn(
+    session as unknown as {
+      send(name: string, data: Record<string, unknown>): void;
+    },
+    "send",
+  );
+  session.handle("toolUse", {
+    contentId: "reset",
+    toolName: "cancel_draft_order",
+    toolUseId: "reset-1",
+    content: JSON.stringify({ expected_version: 2 }),
+  });
+  session.handle("contentEnd", { contentId: "reset", stopReason: "TOOL_USE" });
+  await session.drain();
+  expect(onTool).toHaveBeenCalledWith(
+    "cancel_draft_order",
+    { expected_version: 2 },
+    { cart_version: 2, reset_token: token },
+  );
+  const response = send.mock.calls.find(([name]) => name === "toolResult")![1];
+  const payload = JSON.parse(response.content as string);
+  expect(payload).not.toHaveProperty("reset_token");
+  expect(payload.reset_status).toBe("awaiting_customer_confirmation");
+  expect(payload.summary).toContain("draft is unchanged");
+  expect(payload.summary).toContain("Confirm reset");
+  session.close();
+});
+
+it("keeps review retry identity until the quote expires, then permits a fresh review", async () => {
+  const call = vi
+    .fn(async (_name: string, _args: Record<string, unknown>) => ({}))
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(
+      new McpCallError(recoveryFor("STALE_QUOTE", "Expired")),
+    )
+    .mockResolvedValueOnce({});
+  const session = new NovaSession({ tools: [], call }, () => {});
+  for (const id of ["review", "expired-retry", "fresh-review"]) {
+    session.handle("toolUse", {
+      contentId: id,
+      toolName: "prepare_order_review",
+      toolUseId: id,
+      content: JSON.stringify({ expected_version: 2 }),
+    });
+    session.handle("contentEnd", { contentId: id, stopReason: "TOOL_USE" });
+    await session.drain();
+  }
+  const ids = call.mock.calls.map(([, args]) => args.request_id);
+  expect(ids[1]).toBe(ids[0]);
+  expect(ids[2]).not.toBe(ids[0]);
   session.close();
 });

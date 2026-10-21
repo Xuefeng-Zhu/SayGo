@@ -46,11 +46,22 @@ export function attachVoice(
           let mcp: Awaited<ReturnType<typeof openMcp>> | undefined;
           let ended = false;
           let stopping: Promise<void> | undefined;
+          let initializing: Promise<void> = Promise.resolve();
+          let renewing: Promise<void> = Promise.resolve();
+          let renewLease = true;
+          let renewalPending = false;
+          const cleanup = async (action: () => unknown | Promise<unknown>) => {
+            try {
+              await action();
+            } catch {
+              console.error("SayGo voice cleanup encountered a service error.");
+            }
+          };
           const send = (event: object) => {
             testing.onEvent?.(event as Record<string, unknown>);
             if (ws.readyState === WebSocket.OPEN) {
               if (ws.bufferedAmount > 256000) {
-                stop();
+                void stop();
                 return;
               }
               ws.send(
@@ -65,30 +76,47 @@ export function attachVoice(
           const stop = () => {
             if (stopping) return stopping;
             ended = true;
-            nova?.close();
-            clearInterval(guard);
             clearTimeout(limit);
-            ws.close(1000, "Voice session ended");
-            stopping = (async () => {
-              await nova?.drain();
-              await mcp?.close();
-              await voiceLease(scope.session_id, null);
-              active.delete(scope.session_id);
-              testing.onEnd?.();
-            })();
+            // Memoize before closing: socket callbacks can reenter stop().
+            stopping = Promise.resolve().then(async () => {
+              try {
+                await cleanup(() => nova?.close());
+                await cleanup(() => ws.close(1000, "Voice session ended"));
+                // Late acquisition belongs to this connection until cleanup
+                // finishes; it must not outlive the active registration.
+                await cleanup(() => initializing);
+                await cleanup(() => nova?.drain());
+              } finally {
+                // Keep renewing while dispatched tools drain so consent stays
+                // blocked even if a tool takes longer than the lease lifetime.
+                renewLease = false;
+                clearInterval(guard);
+                await cleanup(() => renewing);
+                await cleanup(() => mcp?.close());
+                await cleanup(() => voiceLease(scope.session_id, null));
+                if (active.get(scope.session_id) === stop)
+                  active.delete(scope.session_id);
+                await cleanup(() => testing.onEnd?.());
+              }
+            });
             return stopping;
           };
           const guard = setInterval(() => {
-            void getView({ ...scope, actor: "agent" })
-              .then(() =>
-                ended
-                  ? undefined
-                  : voiceLease(
-                      scope.session_id,
-                      new Date(Date.now() + 20000).toISOString(),
-                    ),
-              )
-              .catch(() => void stop());
+            if (!renewLease || renewalPending) return;
+            renewalPending = true;
+            renewing = (async () => {
+              if (!renewLease) return;
+              if (!ended) await getView({ ...scope, actor: "agent" });
+              if (!renewLease) return;
+              await voiceLease(
+                scope.session_id,
+                new Date(Date.now() + 20000).toISOString(),
+              );
+            })()
+              .catch(() => void stop())
+              .finally(() => {
+                renewalPending = false;
+              });
           }, 500);
           const limit = setTimeout(
             stop,
@@ -110,8 +138,19 @@ export function attachVoice(
               else {
                 const msg = JSON.parse(data.toString());
                 if (msg.type === "stop") void stop();
-                else if (msg.type === "interrupt") nova.interrupt();
-                else if (msg.type === "text" && typeof msg.text === "string")
+                else if (msg.type === "interrupt") {
+                  const generation = nova.interrupt();
+                  if (
+                    typeof msg.request_id === "string" &&
+                    msg.request_id.length > 0 &&
+                    msg.request_id.length <= 64
+                  )
+                    send({
+                      type: "interrupt_ack",
+                      request_id: msg.request_id,
+                      generation,
+                    });
+                } else if (msg.type === "text" && typeof msg.text === "string")
                   nova.userText(msg.text);
               }
             } catch {
@@ -124,26 +163,50 @@ export function attachVoice(
           });
           ws.on("close", stop);
           ws.on("error", stop);
-          void (async () => {
+          initializing = (async () => {
             await voiceLease(
               scope.session_id,
               new Date(Date.now() + 20000).toISOString(),
             );
+            if (ended) return;
             mcp = await openMcp(agentToken(scope));
-            if (ended) {
-              await mcp.close();
-              return;
-            }
-            nova = new NovaSession(mcp, send, testing);
-            await nova.start();
-            await stop();
-          })().catch(() => {
+            if (ended) return;
+            nova = new NovaSession(mcp, send, {
+              ...testing,
+              onTool: (name, args, result) => {
+                // Only the authoritative tool result can propose a reset. The
+                // model cannot provide customer consent or its own token.
+                if (
+                  !ended &&
+                  name === "cancel_draft_order" &&
+                  !result.error &&
+                  typeof result.reset_token === "string" &&
+                  result.reset_token.length >= 20 &&
+                  result.reset_token.length <= 512 &&
+                  typeof result.cart_version === "number" &&
+                  Number.isSafeInteger(result.cart_version) &&
+                  result.cart_version >= 0
+                )
+                  send({
+                    type: "reset_proposed",
+                    reset_token: result.reset_token,
+                    cart_version: result.cart_version,
+                    fence: scope.fence,
+                  });
+                testing.onTool?.(name, args, result);
+              },
+            });
+            void nova.start().then(stop, unavailable);
+          })();
+          function unavailable() {
+            if (ended) return;
             send({
               type: "error",
               text: "Live Nova speech is unavailable. Check server-side AWS credentials, model access and region. Fixture mode has NOT been started.",
             });
             void stop();
-          });
+          }
+          void initializing.catch(unavailable);
         });
       })
       .catch(() => {

@@ -251,7 +251,11 @@ app.post("/api/lane/confirm", async (req, res) => {
 app.post("/api/lane/reset", async (req, res) => {
   const a = toolSchemas.cancel_draft_order.parse(req.body);
   assert(a.reset_token, "RESET", "Request a reset proposal first.", 400);
-  res.json(await tool(await laneScope(req), "cancel_draft_order", a));
+  const scope = await laneScope(req);
+  // A customer's touch stops capture first; wait for dispatched voice tools
+  // before validating this exact proposal against the current cart version.
+  await stopVoice(scope.session_id);
+  res.json(await tool(scope, "cancel_draft_order", a));
 });
 app.get("/api/crew", async (req, res) => {
   await staff(req, ["admin", "crew"]);
