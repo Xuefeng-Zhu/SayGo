@@ -75,7 +75,7 @@ Current MCP contract **0.5** exposes eleven tools, including read-only `compare_
 | Configure, run, test or troubleshoot locally             | [Local development](docs/local-development.md)                                                                                             |
 | Understand services, source layout and state transitions | [Architecture](docs/architecture.md)                                                                                                       |
 | Build a scoped MCP client or handle retries              | [MCP contracts](docs/mcp-contracts.md) and [best-practice review](docs/mcp-best-practices-review.md)                                       |
-| Use AWS DynamoDB or import legacy data                   | [DynamoDB setup and operating limits](docs/dynamodb.md)                                                                                    |
+| Use AWS DynamoDB                                         | [DynamoDB setup and operating limits](docs/dynamodb.md)                                                                                    |
 | Enable voice or run an approved provider evaluation      | [Voice lifecycle](docs/voice.md) and [text evaluation](docs/model-improvements.md#run-an-authorized-text-evaluation)                       |
 | Review integration, privacy or submission boundaries     | [Integrations](docs/integrations.md), [security and privacy](docs/security-privacy.md), [demo and submission](docs/demo-and-submission.md) |
 | Pick up remaining acceptance work                        | [Implementation handoff](docs/implementation-plan.md)                                                                                      |

@@ -47,8 +47,8 @@ const copy = <T>(value: T): T => structuredClone(value);
 type Staged = { entity: Entity; id: string; data: Rows[Entity] | null };
 
 // Every writer conditions on the restaurant revision in the same atomic bundle.
-// This replaces the previous restaurant row lock and protects absent keys and
-// query phantoms as well as cart, quote, approval and worker lease changes.
+// This protects absent keys and query phantoms as well as cart, quote, approval
+// and worker lease changes.
 export class Tx {
   private cache = new Map<string, Rows[Entity] | null>();
   private lists = new Map<Entity, Rows[Entity][]>();

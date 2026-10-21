@@ -63,7 +63,7 @@ The authenticated browser gateway fetches the full canonical `View` separately a
 
 ## Durable review request identity
 
-Generate one UUID for a new review intent and retain it with the exact arguments until its outcome is known. Inside the domain transaction, a durable idempotency record binds session, actor and request ID to the argument hash and quote ID. The current DynamoDB implementation uses a deterministic record key rather than a SQL unique index.
+Generate one UUID for a new review intent and retain it with the exact arguments until its outcome is known. Inside the domain transaction, a durable idempotency record binds session, actor and request ID to the argument hash and quote ID. The DynamoDB implementation uses a deterministic record key.
 
 - Concurrent identical requests return one still-valid quote with the same expiry.
 - Retrying an already approved, still-valid review preserves approval; it does not recreate consent.
@@ -151,17 +151,15 @@ Example input:
 
 The MCP-builder guide informed the workflow tool, strict schema validation, read-only annotations and independently verifiable evaluations. Primary references: [MCP tools and structured results](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), [pinned SDK generation](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x), and [Nova Converse reasoning/tool use](https://docs.aws.amazon.com/nova/latest/nova2-userguide/using-converse-api.html). The repository's SDK generation was retained; this is not a v2 migration.
 
-## Historical 0.2 storage upgrade
+## Historical 0.2 contract update
 
 The original nine tools used the same authenticated Streamable HTTP endpoint. Revision 0.2 introduced the required review `request_id` and strict result envelope retained above; it did not add OAuth, deployment or live provider verification.
-
-At that PostgreSQL checkpoint, `pnpm db:migrate` applied legacy migration `0003.sql`, adding nullable review-request metadata and a unique constraint without discarding quotes. It was applied locally to `saygo_demo` and the isolated `saygo_test` database. These are historical SQL upgrade notes. The current command provisions DynamoDB; follow [DynamoDB setup and import guidance](dynamodb.md) for a current checkout.
 
 ## Historical verification and boundaries
 
 The subsequent [MCP guide review](mcp-best-practices-review.md) adds transport/authentication edge-case checks, clearer discovery metadata, ten read-only evaluation questions and independent Inspector verification. It expands the suite to 70 passing tests; the paragraph below records the initial contract 0.2 verification.
 
-Locally verified October 10, 2026 Pacific: 23 unit tests, 28 PostgreSQL/real-HTTP-MCP integration tests and 3 Chromium browser tests; lint, strict typechecking and the optimized web/runtime/worker build pass. A temporary compiled runtime on port 3112 returned healthy with sandbox POS and voice disabled, then exited cleanly.
+At the initial contract 0.2 checkpoint on October 10, 2026 Pacific, lint, strict typechecking and the optimized web/runtime/worker build passed. A temporary compiled runtime on port 3112 returned healthy with sandbox POS and voice disabled, then exited cleanly.
 
 New checks cover every tool's success schema, strict/error schema validation, compact projections, concurrent review retries, post-commit response loss followed by a fresh client, approval/expiry preservation, changed request payloads, expired/invalidated quotes, ownership fences and structured Nova recovery events. Browser regression covers order/review/confirmation/kitchen/reload, staff takeover, and stock-change recovery. The review screenshot was inspected after the run.
 

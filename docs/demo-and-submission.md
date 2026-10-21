@@ -46,7 +46,7 @@ The final [original Nova 2 Lite benchmark](evidence/live-model-evaluation-reason
 
 SayGo is an independent Alexa+ concept simulator. Native Alexa+ registration and Food Ordering Category SPI integration remain future work. Payment is due at the window and is outside this demo. No commercial restaurant/POS or intercom integration is claimed.
 
-**Technology:** TypeScript, Next.js/React, Tailwind 3.4, official MCP SDK, Amazon Bedrock Runtime SDK, DynamoDB and DynamoDB Local, Zod, Vitest, Playwright, Docker Compose. PostgreSQL tooling is retained only for legacy import/recovery.
+**Technology:** TypeScript, Next.js/React, Tailwind 3.4, official MCP SDK, Amazon Bedrock Runtime SDK, DynamoDB and DynamoDB Local, Zod, Vitest, Playwright, Docker Compose.
 
 ## Submission handoff
 

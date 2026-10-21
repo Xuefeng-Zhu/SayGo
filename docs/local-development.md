@@ -87,7 +87,7 @@ pnpm infra:local
 
 The helper downloads DynamoDB Local on first use, validates its SHA-256 checksum, and serves port 8000. It keeps files and persistent data in ignored `.local/dynamodb/`. Leave that terminal open while running migrate, seed and dev in another terminal. Ctrl-C stops Java; `pnpm infra:down` controls Docker services only.
 
-Choose either Docker or Java for port 8000. Their storage locations are separate, so switching between them does not carry over your demo data. The legacy PostgreSQL Compose profile is needed only for [import/recovery](dynamodb.md#preserving-postgresql-data).
+Choose either Docker or Java for port 8000. Their storage locations are separate, so switching between them does not carry over your demo data.
 
 ## Checks without provider calls
 

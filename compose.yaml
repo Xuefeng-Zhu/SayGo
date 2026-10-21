@@ -7,20 +7,5 @@ services:
     ports: ["127.0.0.1:8000:8000"]
     volumes: ["saygo_dynamodb:/home/dynamodblocal/data"]
     working_dir: /home/dynamodblocal
-  postgres:
-    profiles: ["legacy-postgres"]
-    image: postgres:17.6-alpine
-    ports: ["127.0.0.1:55432:5432"]
-    environment:
-      POSTGRES_USER: saygo
-      POSTGRES_PASSWORD: saygo_local_only
-      POSTGRES_DB: saygo_demo
-    volumes: ["saygo_postgres:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U saygo -d saygo_demo"]
-      interval: 2s
-      timeout: 3s
-      retries: 20
 volumes:
-  saygo_postgres:
   saygo_dynamodb:

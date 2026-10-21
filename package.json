@@ -13,7 +13,6 @@
     "infra:local": "node scripts/dynamodb-local.mjs",
     "db:migrate": "tsx packages/db/src/migrate.ts",
     "db:seed": "tsx packages/db/src/seed.ts",
-    "db:import-postgres": "tsx packages/db/src/import-postgres.ts",
     "dev": "concurrently -k -n web,runtime,worker 'pnpm --filter @saygo/web dev' 'tsx watch apps/runtime/src/index.ts' 'tsx watch apps/worker/src/index.ts'",
     "test": "vitest run tests/unit",
     "test:integration": "tsx tests/setup-db.ts && vitest run tests/integration --maxWorkers=1 --no-file-parallelism",
@@ -33,7 +32,6 @@
     "@smithy/node-http-handler": "4.12.1",
     "dotenv": "16.6.1",
     "express": "5.3.0",
-    "pg": "8.23.1",
     "ws": "8.22.0",
     "zod": "4.6.5"
   },
@@ -42,7 +40,6 @@
     "@playwright/test": "1.64.0",
     "@types/express": "5.0.5",
     "@types/node": "24.10.1",
-    "@types/pg": "8.15.6",
     "@types/ws": "8.18.1",
     "concurrently": "9.2.1",
     "eslint": "9.39.1",

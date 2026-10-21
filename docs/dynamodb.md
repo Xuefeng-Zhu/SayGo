@@ -1,6 +1,6 @@
 # DynamoDB storage and operating limits
 
-SayGo uses the AWS SDK v3 DynamoDB document client for all runtime persistence. `pg` is used only by the one-time legacy importer. The old PostgreSQL migrations and named Compose volume are preserved for recovery.
+SayGo uses the AWS SDK v3 DynamoDB document client for all runtime persistence.
 
 ## Local and AWS setup
 
@@ -14,7 +14,7 @@ The [October 13, 2026 AWS capacity snapshot](evidence/dynamodb-capacity.json) re
 
 The October 13 pricing review recorded an allowance of 25 GB storage and 25 provisioned read/write units per Region and payer account. It is shared with other usage; it is not a per-table entitlement or a guarantee of a zero invoice. At that inspection, the account's other two regional tables were on-demand and used no provisioned units, and AWS Organizations reported a standalone account. Account sharing, configuration and pricing may change; check [AWS pricing](https://aws.amazon.com/dynamodb/pricing/) and account usage before relying on the historical allowance. On-demand requests, extra storage/capacity, backup features and Bedrock inference can incur separate charges.
 
-The first 5/5 capacity configuration throttled bulk import. Fixed 25/25 completed it. There is no automatic capacity increase; sustained excess workload will throttle. This is a one-restaurant demo, not a tested production throughput target.
+There is no automatic capacity increase; sustained excess workload will throttle. This is a one-restaurant demo, not a tested production throughput target.
 
 ## Transaction design
 
@@ -24,13 +24,7 @@ Every write bundle includes a conditional update to the restaurant revision, pre
 
 Queries use partition/sort-key conditions and pagination. Entity collections are bounded by the demo workload; there are no table-wide scans or GSIs. The worker polls less frequently against AWS. Reads and writes cost capacity even during contention; transactions use additional units.
 
-Each transaction supports at most 99 entity changes plus the revision. Bulk reset/import uses a maintenance fence and smaller batches. A failure leaves that fence in place. Ordinary operations fail closed until the interrupted maintenance is safely resumed. An interrupted import can be resumed with `SAYGO_RESUME_IMPORT=true`; it compares every existing destination record with the source before continuing and refuses mismatches. Do not clear a maintenance fence while a maintenance process is still running.
-
-## Preserving PostgreSQL data
-
-Start the preserved source with `docker compose --profile legacy-postgres up -d --wait postgres`; the normal `pnpm infra:up` does not enable that profile. Run `pnpm db:migrate` against the intended DynamoDB destination, then `pnpm db:import-postgres` before seeding. The importer reads the local `saygo_demo` source on port 55432 in a read-only repeatable-read transaction, copies all entity records, reconstructs review identities/active-quote pointers, and verifies every record's content and counts after import. `SAYGO_IMPORT_DATABASE_URL` can select another authorized source without printing it. The importer refuses an existing populated destination unless explicitly resuming a matching interrupted copy.
-
-The executed migration preserved 9 orders and their sandbox receipts, 14 menu products, 3 staff accounts, and associated interaction/cart/approval/job/audit data. [Sanitized migration evidence](evidence/dynamodb-migration.json). The source database and volume remain recoverable.
+Each transaction supports at most 99 entity changes plus the revision. Bulk reset uses a maintenance fence and smaller batches. A failure leaves that fence in place. Ordinary operations fail closed until the interrupted maintenance is safely resumed. Do not clear a maintenance fence while a maintenance process is still running.
 
 ## Verification
 

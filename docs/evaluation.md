@@ -2,7 +2,7 @@
 
 ## Reading this evidence
 
-The sections below are dated checkpoints. Older PostgreSQL, tool-count, test-count, provider and publication statements describe their checkpoint only. The newest live text-model verification is the final October 14 follow-up below (October 15 UTC). The October 20 publication checks verify the model fixes together with the subsequently committed draft-order features locally.
+The sections below are dated checkpoints. Older tool-count, test-count, provider and publication statements describe their checkpoint only. The newest live text-model verification is the final October 14 follow-up below (October 15 UTC). The October 20 publication checks verify the model fixes together with the subsequently committed draft-order features locally.
 
 For current commands, use [local development and software verification](local-development.md) or [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Historical results and spending approvals are evidence of those runs, not authorization for new provider calls.
 
@@ -89,7 +89,7 @@ The synthetic live Sonic harness and shared durable $1-additional provider budge
 
 ## Model improvements and publication — October 13, 2026
 
-The migration checkpoint was committed and pushed as `f5d5d97`. Subsequent work adds the MCP-builder-guided read-only `compare_menu_prices` tool (contract 0.3), shared text/voice pricing guidance, stricter final-answer formatting instructions and ten additional independently verified questions. **108 unit/integration tests pass** (58 unit and 50 integration, including the official Inspector); lint, typecheck and production build pass. Inspector discovers ten tools with zero strict schema findings. Browser journeys were not rerun during this backend/model follow-up; the three migration-era journeys below remain historical evidence.
+The DynamoDB checkpoint was committed and pushed as `f5d5d97`. Subsequent work adds the MCP-builder-guided read-only `compare_menu_prices` tool (contract 0.3), shared text/voice pricing guidance, stricter final-answer formatting instructions and ten additional independently verified questions. **108 unit/integration tests pass** (58 unit and 50 integration, including the official Inspector); lint, typecheck and production build pass. Inspector discovers ten tools with zero strict schema findings. Browser journeys were not rerun during this backend/model follow-up; the three October 13 journeys below remain historical evidence.
 
 All original XML questions and expected answers remain unchanged. These are development runs, not repeated trials aggregated into an inflated score. Each model sees only its question and discovered read-only tools, never the expected answer or verifier feedback. Every completed run below preserved database fingerprints for all ten trials and cleaned its temporary entity data. Tool input/output schemas are validated; final answers are compared exactly after trimming, with no sign correction, list normalization, field-label removal or retries of failed final answers.
 
@@ -109,11 +109,11 @@ Across all preserved runs (including the original disabled/partial-low trials), 
 
 This is a bounded text/MCP evaluation, not proof of acoustic voice, Sonic accuracy, statistical reliability or production readiness. Medium reasoning is configured only for the text evaluator, not silently enabled in the runtime voice adapter. The new pricing workflow and authority checks also reach voice through discovered tools and shared guidance, but require separate live voice testing. [Implementation and limits](model-improvements.md).
 
-## DynamoDB migration and live-model evaluation — October 13, 2026
+## DynamoDB verification and live-model evaluation — October 13, 2026
 
 The current application uses DynamoDB. **79 local tests passed**: 28 unit tests, 48 integration tests including the official Inspector, and 3 browser journeys. Lint, typecheck and production build passed. Database/MCP regressions cover atomic rollback, eight concurrent updates, more than 100 reset records, worker-busy reset rejection, duplicate submissions, stale/replayed reviews, consent, staff fencing, and durable POS reconciliation. The browser journeys verified the migrated local database. The separate [AWS acceptance check](evidence/aws-dynamodb-smoke.json) verified the real cloud table through HTTP MCP, customer-only approval, four concurrent submissions, competing workers, a fresh MCP connection, kitchen transitions, customer isolation and staff fencing.
 
-The [PostgreSQL import](evidence/dynamodb-migration.json) copied 271 existing entity records, including 9 orders/receipts, 14 products and 3 staff accounts. Four durable review identity records were added. Every copied record's content and counts were checked; the source database/volume was preserved. This checkout's ignored `.env` now selects the AWS `SayGo` table in `us-west-2`, with fixed Standard provisioned capacity of 25 RCU / 25 WCU, no indexes or autoscaling. [Storage design and free-tier limits](dynamodb.md).
+At this checkpoint, the AWS `SayGo` table in `us-west-2` used fixed Standard provisioned capacity of 25 RCU / 25 WCU, with no indexes or autoscaling. [Storage design and free-tier limits](dynamodb.md).
 
 Real Amazon Nova 2 Lite (`us.amazon.nova-2-lite-v1:0`) called the actual MCP endpoint against fresh, isolated AWS DynamoDB namespaces. Each question started with a new conversation and interaction, and the expected answers remained outside model input. Code allowed only `get_menu` and `get_item_details`; output schemas were validated and complete runs compared database fingerprints before/after every trial. No microphone or Sonic speech session was tested.
 
@@ -133,33 +133,9 @@ The runner reserves conservative input/output costs before each call, keeps a 25
 
 For a new comparison, follow [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Use a fresh report ID and an initialized approval ledger; both suites share that approval's observed usage and outstanding reservations. Preserve these reports and earlier reservations. The historical $1 approval above does not authorize another run.
 
-## Earlier PostgreSQL build evidence
+## Historical acceptance coverage — October 10, 2026
 
-Verified locally on October 10, 2026 (Pacific; October 11 UTC). The working, tested path is the **independent web simulator → real HTTP MCP → PostgreSQL → persistent POS sandbox → kitchen**. The finite no-key utterances are not a language model or speech recognizer. Live Nova speech and native Alexa+ remain unverified.
-
-Updated after the [MCP guide review](mcp-best-practices-review.md): **70 tests pass** (23 unit, 44 database/MCP including Inspector, 3 browser). The new cases cover malformed requests, transport/authentication boundaries, discovery metadata and ten read-only evaluation questions. Lint, typecheck, production build and browser workflows were rerun. Dependency installation, initial infrastructure setup and the dependency audit below are evidence from the initial build; the compiled-runtime health row is from the preceding contract 0.2 pass.
-
-## Executed checks
-
-| Check                                              | Result and boundary                                                                                                                                                                                    |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm install --frozen-lockfile`                   | Passed with pinned lockfile. Node 24 and pnpm 11.25.0 on this Mac.                                                                                                                                     |
-| `pnpm infra:up`, `pnpm db:migrate`, `pnpm db:seed` | Dedicated local PostgreSQL 17.6; seeded fictional Harbor Burger menu and demo roles.                                                                                                                   |
-| `pnpm test`                                        | **23 passed**: 8 deterministic menu/cart cases, 4 audio queue/generation cases, 4 synthetic Nova event cases, 7 MCP contract cases.                                                                    |
-| `SAYGO_INSPECTOR_TEST=1 pnpm test:integration`     | **44 passed** against isolated `saygo_test` and a real HTTP MCP endpoint on 3111, including Inspector and ten read-only evaluation verifications. Without the opt-in, 43 run and Inspector is skipped. |
-| `pnpm test:e2e`                                    | **3 passed**, latest browser run 15.0 seconds: correction/reload/consent/kitchen/next vehicle; crew takeover/edit/release; stock invalidation/recovery.                                                |
-| `pnpm lint`, `pnpm typecheck`                      | Passed. Strict TypeScript checks include web, runtime, worker and shared packages.                                                                                                                     |
-| `pnpm build`                                       | Passed: Next.js optimized build and compiled Node runtime/worker entry points. No deployment.                                                                                                          |
-| Compiled runtime smoke test                        | Started the built runtime on temporary loopback port 3112; `/health` returned `{"ok":true,"pos":"sandbox","voice":false}`; stopped that temporary child process.                                       |
-| Running development health                         | Runtime 3101 returned healthy; order-board route 3100 returned HTTP 200. Web/runtime/worker and dedicated database left running for local use.                                                         |
-| `pnpm audit --prod --audit-level high`             | No known vulnerabilities reported at execution time. This is dependency advisory coverage, not an independent security audit.                                                                          |
-| `git diff --check`                                 | Passed. New implementation files remain uncommitted; no repository publication or remote was created.                                                                                                  |
-
-Integration tests explicitly assert the test database name before truncating fixture tables. Browser tests operate on the fictional demo, create new lane sessions and leave accepted sample tickets intact. They should not run during someone else's active demonstration. Existing demo staff/menu settings are preserved by seeding and the explicit scoped demo reset.
-
-## Acceptance coverage
-
-The following maps the brief's 18 cases to executable checks. Passing an adapter-level or fault-injection test does not establish field reliability.
+The following records the brief's 18 cases at the original October 10 checkpoint. These results do not verify the current source. Passing an adapter-level or fault-injection test does not establish field reliability.
 
 | #   | Requirement                          | Evidence                                                                                                                                                                                                                                  |
 | --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -182,11 +158,11 @@ The following maps the brief's 18 cases to executable checks. Passing an adapter
 | 17  | Authentication and scope             | Unauthenticated, expired/forged bearer, wrong origin, cross-restaurant/session and crew-to-admin attempts rejected. Not a penetration test.                                                                                               |
 | 18  | MCP compatibility                    | Actual HTTP initialize negotiates **2025-11-25**, official SDK discovers nine tools and makes structured tool calls; conversational paths do not import handlers directly.                                                                |
 
-Test sources: [unit suites](../tests/unit), [PostgreSQL/MCP suite](../tests/integration/ordering.test.ts), [browser suite](../tests/e2e/saygo.spec.ts), [structured golden utterances](../tests/golden-utterances.json). The six golden utterances form a deterministic fixture sequence; these results do not measure unconstrained intent accuracy.
+Test sources: [unit suites](../tests/unit), [integration suite](../tests/integration/ordering.test.ts), [browser suite](../tests/e2e/saygo.spec.ts), [structured golden utterances](../tests/golden-utterances.json). The six golden utterances form a deterministic fixture sequence; these results do not measure unconstrained intent accuracy.
 
-## Measured local timings
+## Historical measured local timings — October 10, 2026
 
-The [saved observation](evidence/local-timings.json) was recorded at **2026-10-11T03:46:00.706Z** in the latest browser run:
+The [saved observation](evidence/local-timings.json) was recorded at **2026-10-11T03:46:00.706Z** in the original browser run:
 
 | Measurement                                                                | Observed |
 | -------------------------------------------------------------------------- | -------: |
@@ -194,7 +170,7 @@ The [saved observation](evidence/local-timings.json) was recorded at **2026-10-1
 | Server-side `apply_cart_changes` MCP round trip, including result decoding |    22 ms |
 | Confirmation click → sandbox-accepted board visible                        |  1848 ms |
 
-These are **one local sample**, not percentiles, SLAs, model latency or a throughput benchmark. Browser observations include assertion/polling overhead. The MCP duration excludes initial connection/tool discovery and the fixture's preceding `get_cart` call. No audio end-of-utterance → first response measurement is reported because no live microphone/provider session occurred. Implemented transcript/audio timing hooks still require validation against real audio timestamps.
+These are **one historical local sample**, not measurements of the current implementation, percentiles, SLAs, model latency or a throughput benchmark. Browser observations include assertion/polling overhead. The MCP duration excludes initial connection/tool discovery and the fixture's preceding `get_cart` call. No audio end-of-utterance → first response measurement is reported because no live microphone/provider session occurred. Implemented transcript/audio timing hooks still require validation against real audio timestamps.
 
 ## Historical browser and visual evidence — October 10, 2026
 
