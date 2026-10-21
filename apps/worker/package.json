@@ -6,5 +6,6 @@
   "dependencies": {
     "@saygo/db": "workspace:*",
     "@saygo/integrations": "workspace:*"
-  }
+  },
+  "license": "MIT"
 }

@@ -31,4 +31,4 @@ The recording's working tree includes local changes and explicit local test over
 
 A fresh clone should be checked against [reviewer instructions](reviewer-instructions.md) after publication. A clean-machine installation, the concise prompt's actual live reply length, human/noisy speech, intercom acoustics and commercial POS behavior have not been established. No new concise replacement movie exists.
 
-The [machine-readable summary](verification-summary.json) records these same boundaries. [Submission checklist](submission-checklist.md) tracks the remaining license, public video and owner-answer requirements.
+The [machine-readable summary](verification-summary.json) records these same boundaries. [Submission checklist](submission-checklist.md) tracks published-license verification, the public video and owner-answer requirements.

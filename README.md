@@ -8,7 +8,7 @@ This is an **independent Alexa+ concept simulator**. Its working path is browser
 
 ## Submission review
 
-The [submission draft](devpost-submission.md) and [reviewer instructions](docs/submission/reviewer-instructions.md) describe the Alexa+ simulated-experience route and a credential-free local ordering flow. The repository is public; an open-source license still needs the owner’s choice, and the public YouTube/Vimeo video URL is pending.
+The [submission draft](devpost-submission.md) and [reviewer instructions](docs/submission/reviewer-instructions.md) describe the Alexa+ simulated-experience route and a credential-free local ordering flow. The repository is public. Original SayGo code and documentation use the [MIT License](LICENSE); [third-party and media terms](THIRD_PARTY_NOTICES.md) remain separate. The public YouTube/Vimeo video URL is pending.
 
 The selected 106.672-second demo uses prerecorded Polly Generative Matthew customer speech/narration, fresh Nova 2 Sonic Tiffany replies and a local mock POS. Its extra spoken size clarification is visible. It predates the concise-response prompt; it does not demonstrate that new behavior.
 
@@ -93,3 +93,7 @@ Current MCP contract **0.5** exposes eleven tools, including read-only `compare_
 | Understand UI decisions or SDK issues                    | [Design reference](docs/design.md) and [SDK friction log](docs/sdk-friction.md)                                                            |
 
 SayGo is a local demo. Production hosting, native Alexa+, commercial POS/intercom hardware, real payments and broad speech reliability remain open work. Allergy requests pause automated finalization and go to staff; fictional ingredient lists are not safety assurances. The 8% tax is a fixture. Further paid trials require an approved scope and spending limit.
+
+## License
+
+Original SayGo source code and associated documentation are MIT-licensed, copyright (c) 2026 Xuefeng Zhu. This grant does not relicense third-party packages, generated/recorded media, external services or model assets. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).

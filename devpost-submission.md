@@ -86,7 +86,7 @@ No hosted application link is currently verified. A website is optional in the f
 
 Repository: https://github.com/Xuefeng-Zhu/SayGo
 
-The repository is **public**. The owner has not selected an open-source license, and no license file is present. The public-repository submission route still needs that decision, its complete license file and verified GitHub detection.
+The repository is **public**. SayGo’s original source code and documentation are licensed under [MIT](LICENSE), copyright 2026 Xuefeng Zhu. Third-party materials retain their own terms; generated media, audio and model assets are not relicensed by that license. See [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Demo Video
 
@@ -100,7 +100,7 @@ Four prepared images are in `docs/submission/screenshots/`: live ordering, scree
 
 ## Submission Readiness Notes
 
-The narrative is ready for owner review. Final submission still needs the public video link, an open-source license, confirmed entrant/form answers, feedback approval and consistent source/version claims. See [submission-checklist.md](docs/submission/submission-checklist.md).
+The narrative is ready for owner review. Final submission still needs the public video link, confirmed entrant/form answers, feedback approval and consistent source/version claims. Verify the published license file and GitHub license metadata before entering the repository URL. See [submission-checklist.md](docs/submission/submission-checklist.md).
 
 ## Known Limitations
 

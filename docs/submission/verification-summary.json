@@ -85,10 +85,11 @@
   "publicationStatus": {
     "repository": "https://github.com/Xuefeng-Zhu/SayGo",
     "visibility": "PUBLIC",
-    "openSourceLicense": "owner choice pending; no LICENSE file established",
+    "openSourceLicense": "MIT, copyright 2026 Xuefeng Zhu, for original source code and documentation; verify published LICENSE and GitHub detection after push",
     "publicYouTubeOrVimeoUrl": null,
     "devpostSubmission": "not established by these files",
-    "ownerFormAnswers": "required, including future-use feedback field 28307"
+    "ownerFormAnswers": "required, including future-use feedback field 28307",
+    "licenseScope": "Third-party materials retain their own terms; generated media, audio and model assets are not relicensed. See LICENSE and THIRD_PARTY_NOTICES.md."
   },
   "documentationPreparation": {
     "externalWrites": 0,

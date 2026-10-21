@@ -2,7 +2,7 @@
 
 Repository: https://github.com/Xuefeng-Zhu/SayGo
 
-The repository is public. The open-source license is still an owner decision; publication alone does not complete that submission requirement. These instructions contain no owner AWS credentials.
+The repository is public. SayGo’s original source code and documentation are licensed under [MIT](../../LICENSE), copyright 2026 Xuefeng Zhu. Third-party materials retain their own terms; generated media, audio and model assets are not relicensed by that license. See [third-party notices](../../THIRD_PARTY_NOTICES.md). These instructions contain no owner AWS credentials.
 
 ## Reproduce ordering without AWS credentials
 
@@ -78,6 +78,6 @@ Integration/browser tests mutate dedicated local test data. Follow [isolated tes
 - [Verification summary](verification-summary.json).
 - [Human-readable verification scope](verification.md) and [demo provenance](demo.md). Historical raw source fingerprints remain in owner QA artifacts; they are not public reviewer dependencies.
 - [Recorded gallery images](screenshots/): ordering, exact review, accepted order and kitchen.
-- [Submission checklist](submission-checklist.md) for the outstanding public video link, license and entrant answers.
+- [Submission checklist](submission-checklist.md) for the outstanding public video link, published-license verification and entrant answers.
 
 Full recording/QA artifacts remain with the owner. This repository summary does not turn those task-local paths into public links or claim that every raw artifact is included.

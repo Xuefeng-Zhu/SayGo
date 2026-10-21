@@ -1,10 +1,11 @@
 # SayGo — submission checklist
 
-The repository is public. The submission documents remain drafts: no Devpost entry or public video upload is established by this checklist. The owner has authorized continuing local work and pushing scoped project changes; that does not supply the missing license choice or personal answers.
+The repository is public. The submission documents remain drafts: no Devpost entry or public video upload is established by this checklist. The owner has selected MIT for SayGo’s original source code and documentation and authorized pushing the scoped changes. Personal answers remain with the owner.
 
 ## Finish the required items
 
-- [ ] **Choose the open-source license.** The chosen public-repository route requires its complete license file and detectable GitHub license metadata. No license has been selected here. Private reviewer invitations are not needed for this public route.
+- [x] **License selected: MIT**, copyright 2026 Xuefeng Zhu, for SayGo’s original source code and documentation. Third-party materials retain their own terms; generated media, audio and model assets are not relicensed.
+- [ ] **Verify published licensing.** Confirm the complete [LICENSE](../../LICENSE), [third-party notices](../../THIRD_PARTY_NOTICES.md) and GitHub license metadata after pushing. Private reviewer invitations are not needed for this public route.
 - [ ] **Add a public video URL.** Review and publish the existing 1:46.672 English-captioned candidate to public YouTube or Vimeo, then add its actual URL. The local/private Library copy is not that link. No upload is performed by this document update.
 - [ ] **Complete entrant facts.** Submitter type, organization/N/A, country, any applicable Canadian province, teammates/representative, eligibility declarations, New versus Existing, learning level and career AI value need the owner's answers. October Git history does not prove there was no earlier prototype.
 - [ ] **Finish product feedback.** Review the technical observations and personally complete field **28307**, Yes/No with reasons about future tool use. No opinion has been invented. Confirm the proposed **Alexa+ simulation** track and **AWS Builder: Yes** choice. Open Source remains No unless an additional qualifying contribution is identified.
