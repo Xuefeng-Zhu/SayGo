@@ -15,8 +15,94 @@ it("rejects obsolete completion audio and deduplicates interruption notification
 });
 import {
   NovaSession,
+  type ProviderVoiceEvidence,
   type VoiceEvent,
 } from "../../packages/integrations/src/nova.js";
+it("observes provider block identity and partial boundaries without treating FINAL as a complete user turn", () => {
+  const evidence: ProviderVoiceEvidence[] = [];
+  const session = new NovaSession(
+    { tools: [], call: async () => ({}) },
+    () => {},
+    { onProviderEvidence: (event) => evidence.push(event) },
+  );
+  session.handle("contentStart", {
+    contentId: "user-fragment",
+    completionId: "conversation",
+    role: "USER",
+    type: "TEXT",
+    additionalModelFields: '{"generationStage":"FINAL"}',
+  });
+  session.handle("textOutput", {
+    contentId: "user-fragment",
+    content: "Yes, place the order",
+  });
+  session.handle("contentEnd", {
+    contentId: "user-fragment",
+    stopReason: "PARTIAL_TURN",
+  });
+  expect(evidence[2]).toMatchObject({
+    name: "contentEnd",
+    contentId: "user-fragment",
+    completionId: "conversation",
+    role: "USER",
+    contentType: "TEXT",
+    final: true,
+    stopReason: "PARTIAL_TURN",
+  });
+  expect(evidence[1].text).toBe("Yes, place the order");
+  session.handle("contentStart", {
+    contentId: "audio",
+    completionId: "conversation",
+    role: "ASSISTANT",
+    type: "AUDIO",
+  });
+  session.handle("audioOutput", {
+    contentId: "audio",
+    content: Buffer.alloc(48).toString("base64"),
+  });
+  expect(evidence[4]).toMatchObject({
+    audioBytes: 48,
+    role: "ASSISTANT",
+    contentId: "audio",
+  });
+  expect(evidence[4]).not.toHaveProperty("content");
+  expect(evidence[4]).not.toHaveProperty("audio");
+  session.close();
+});
+it("uses a server result transform before returning a review to the provider", async () => {
+  const events: VoiceEvent[] = [];
+  const transformToolResult = vi.fn(async (_name, _args, result) => ({
+    ...result,
+    voice_confirmation_available: false,
+  }));
+  const session = new NovaSession(
+    { tools: [], call: async () => ({ quote_id: "server-quote" }) },
+    (event) => events.push(event),
+    { transformToolResult },
+  );
+  const send = vi.spyOn(
+    session as unknown as {
+      send(name: string, data: Record<string, unknown>): void;
+    },
+    "send",
+  );
+  session.handle("toolUse", {
+    contentId: "review",
+    toolName: "prepare_order_review",
+    toolUseId: "review",
+    content: "{}",
+  });
+  session.handle("contentEnd", { contentId: "review", stopReason: "TOOL_USE" });
+  await session.drain();
+  expect(transformToolResult).toHaveBeenCalledOnce();
+  const reply = send.mock.calls.find(([name]) => name === "toolResult")![1];
+  expect(JSON.parse(reply.content as string)).toEqual({
+    quote_id: "server-quote",
+    voice_confirmation_available: false,
+  });
+  expect(events.some((event) => event.type === "cart_changed")).toBe(true);
+  session.close();
+});
 it("aborts a full input queue without throwing from close or accepting later input", () => {
   vi.useFakeTimers();
   try {

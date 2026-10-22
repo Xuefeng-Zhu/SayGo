@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PlaybackQueue } from "./playback";
+import { ReadbackPlayback } from "./readback-playback";
 export type ResetProposal = {
   reset_token: string;
   cart_version: number;
@@ -14,38 +15,48 @@ export function useVoice(
   url: string,
   onCart: () => void,
   onReset?: (proposal: ResetProposal) => void,
-  control?: { fence: number; enabled: boolean },
+  control?: { fence: number; enabled: boolean; cartVersion?: number },
 ) {
   const [status, setStatus] = useState("Microphone off"),
     [caption, setCaption] = useState(""),
     [pending, setPending] = useState(false),
-    [active, setActive] = useState(false);
+    [active, setActive] = useState(false),
+    [confirmationUnavailable, setConfirmationUnavailable] = useState(false);
   const cleanup = useRef<() => void>(() => {}),
     interruptPlayback = useRef<() => void>(() => {}),
     socket = useRef<WebSocket | null>(null),
     scope = useRef(0),
     onCartRef = useRef(onCart),
     onResetRef = useRef(onReset),
+    invalidateReadback = useRef<() => void>(() => {}),
+    currentControl = useRef(control),
     controlKey = useRef("");
   const key = `${sessionId}:${epoch}:${control?.fence}:${control?.enabled ?? true}`;
   controlKey.current = key;
+  currentControl.current = control;
   onCartRef.current = onCart;
   onResetRef.current = onReset;
   const stop = useCallback(() => {
     scope.current++;
     cleanup.current();
+    invalidateReadback.current();
+    invalidateReadback.current = () => {};
     cleanup.current = () => {};
     interruptPlayback.current = () => {};
     socket.current = null;
     setActive(false);
     setPending(false);
     setCaption("");
+    setConfirmationUnavailable(false);
     setStatus("Microphone off");
   }, []);
   useEffect(() => {
     stop();
     return stop;
   }, [key, stop]);
+  useEffect(() => {
+    invalidateReadback.current();
+  }, [control?.cartVersion]);
   const start = async () => {
     stop();
     if (!sessionId || control?.enabled === false) return;
@@ -59,12 +70,43 @@ export function useVoice(
       context: AudioContext | undefined,
       ws: WebSocket | undefined,
       worklet: AudioWorkletNode | undefined;
-    const playback = new PlaybackQueue(() => context?.currentTime ?? 0);
+    const readback = new ReadbackPlayback();
+    invalidateReadback.current = () => readback.invalidate();
+    const playback = new PlaybackQueue(
+      () => context?.currentTime ?? 0,
+      () => acknowledgeReadback(),
+    );
     let ready = false,
-      waitingForInterrupt: string | undefined;
+      waitingForInterrupt: string | undefined,
+      unsupportedConfirmation = false;
     const captureEnded = () => fail("Microphone disconnected. Voice stopped.");
+    const acknowledgeReadback = () => {
+      if (
+        !current() ||
+        !ready ||
+        unsupportedConfirmation ||
+        waitingForInterrupt ||
+        currentControl.current?.enabled === false ||
+        ws?.readyState !== WebSocket.OPEN
+      )
+        return;
+      const receipt = readback.played({
+        generation: playback.generation,
+        queuedSources: playback.queuedSources,
+        cartVersion: currentControl.current?.cartVersion,
+        running: context?.state === "running",
+        now: Date.now(),
+      });
+      if (!receipt) return;
+      try {
+        ws.send(JSON.stringify(receipt));
+      } catch {
+        fail("Live speech connection failed. Microphone stopped.");
+      }
+    };
     const release = () => {
       ready = false;
+      readback.invalidate();
       playback.clear();
       if (worklet) {
         worklet.port.onmessage = null;
@@ -141,6 +183,7 @@ export function useVoice(
       interruptPlayback.current = () => {
         if (!current() || !ready || connection.readyState !== WebSocket.OPEN)
           return;
+        readback.invalidate();
         playback.clear();
         waitingForInterrupt = crypto.randomUUID();
         setCaption("");
@@ -179,6 +222,14 @@ export function useVoice(
             setPending(false);
             setStatus("Listening · AI-generated speech");
           }
+          if (
+            typeof msg.type === "string" &&
+            msg.type.startsWith("confirmation_") &&
+            (typeof msg.fence !== "number" ||
+              !Number.isSafeInteger(msg.fence) ||
+              msg.fence < 0)
+          )
+            throw new Error("Invalid confirmation scope");
           if (msg.type === "interrupt" || msg.type === "interrupt_ack") {
             if (
               typeof msg.generation !== "number" ||
@@ -193,6 +244,7 @@ export function useVoice(
               waitingForInterrupt = undefined;
             }
             if (msg.generation < playback.generation) return;
+            readback.invalidate();
             playback.interrupt(msg.generation);
             setCaption("");
             setStatus("Listening · response interrupted");
@@ -200,6 +252,7 @@ export function useVoice(
           if (msg.type === "caption") {
             if (typeof msg.text !== "string" || typeof msg.final !== "boolean")
               throw new Error("Invalid caption");
+            if (msg.role === "USER") readback.invalidate();
             setCaption(
               `${msg.role === "USER" ? "You" : "SayGo"}${msg.final ? "" : " (provisional)"}: ${msg.text}`,
             );
@@ -210,7 +263,32 @@ export function useVoice(
             setPending(msg.pending);
           }
           if (msg.type === "cart_changed") onCartRef.current();
+          if (msg.type === "confirmation_readback") {
+            if (unsupportedConfirmation) return;
+            readback.begin(msg, playback.generation, Date.now());
+            onCartRef.current();
+          }
+          if (msg.type === "confirmation_readback_complete") {
+            if (unsupportedConfirmation) return;
+            readback.complete(msg);
+            acknowledgeReadback();
+          }
+          if (msg.type === "confirmation_invalidated") {
+            readback.invalidate();
+            onCartRef.current();
+          }
+          if (msg.type === "confirmation_ready") onCartRef.current();
+          if (msg.type === "confirmation_unavailable") {
+            unsupportedConfirmation = true;
+            readback.invalidate();
+            setConfirmationUnavailable(true);
+            setStatus(
+              "Voice confirmation isn’t available for this connection. Stop voice and confirm on screen.",
+            );
+            onCartRef.current();
+          }
           if (msg.type === "reset_proposed") {
+            readback.invalidate();
             if (
               typeof msg.reset_token !== "string" ||
               msg.reset_token.length < 20 ||
@@ -256,13 +334,18 @@ export function useVoice(
             for (let i = 0; i < channel.length; i++)
               channel[i] = pcm.getInt16(i * 2, true) / 32768;
             try {
-              playback.enqueue(msg.generation, buffer.duration, (time) => {
-                const node = audioContext.createBufferSource();
-                node.buffer = buffer;
-                node.connect(audioContext.destination);
-                node.start(time);
-                return node;
-              });
+              const enqueued = playback.enqueue(
+                msg.generation,
+                buffer.duration,
+                (time) => {
+                  const node = audioContext.createBufferSource();
+                  node.buffer = buffer;
+                  node.connect(audioContext.destination);
+                  node.start(time);
+                  return node;
+                },
+              );
+              if (enqueued) readback.audio(msg.generation as number);
             } catch {
               fail("Playback queue exceeded its limit. Voice stopped.");
             }
@@ -289,7 +372,9 @@ export function useVoice(
     caption,
     pending,
     active,
+    confirmationUnavailable,
     text: (text: string) => {
+      invalidateReadback.current();
       if (socket.current?.readyState === WebSocket.OPEN)
         socket.current.send(JSON.stringify({ type: "text", text }));
     },

@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { config } from "@saygo/db";
 import { scopeForToken, getView, voiceLease } from "@saygo/domain";
@@ -6,6 +7,10 @@ import { openMcp } from "@saygo/integrations";
 import { NovaSession } from "../../../packages/integrations/src/nova.js";
 import type { VoiceSessionOptions } from "../../../packages/integrations/src/nova.js";
 import { agentToken, cookie } from "./auth.js";
+import {
+  CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED,
+  VoiceConfirmationCoordinator,
+} from "./voice-confirmation.js";
 const active = new Map<string, { fence: number; stop: () => Promise<void> }>();
 // A takeover can finish while a previously authorized upgrade is still waiting
 // for its state read. Remember the invalidated generation so it cannot register
@@ -71,6 +76,7 @@ export function attachVoice(
             return;
           }
           let nova: NovaSession | undefined;
+          const connectionId = randomUUID();
           let mcp: Awaited<ReturnType<typeof openMcp>> | undefined;
           let ended = false;
           let stopping: Promise<void> | undefined;
@@ -103,9 +109,18 @@ export function attachVoice(
               );
             }
           };
+          const confirmation = new VoiceConfirmationCoordinator({
+            scope,
+            connectionId,
+            // Current provider cannot certify whole customer turns. No testing,
+            // model, browser or environment option may override this capability.
+            certifiedWholeUserTurns: CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED,
+            send,
+          });
           const stop = () => {
             if (stopping) return stopping;
             ended = true;
+            const confirmationStopped = confirmation.disconnect();
             clearTimeout(limit);
             // Memoize before closing: socket callbacks can reenter stop().
             stopping = Promise.resolve().then(async () => {
@@ -116,6 +131,8 @@ export function attachVoice(
                 // finishes; it must not outlive the active registration.
                 await cleanup(() => initializing);
                 await cleanup(() => nova?.drain());
+                await cleanup(() => confirmationStopped);
+                await cleanup(() => confirmation.drain());
               } finally {
                 // Keep renewing while dispatched tools drain so consent stays
                 // blocked even if a tool takes longer than the lease lifetime.
@@ -123,7 +140,9 @@ export function attachVoice(
                 clearInterval(guard);
                 await cleanup(() => renewing);
                 await cleanup(() => mcp?.close());
-                await cleanup(() => voiceLease(scope.session_id, null));
+                await cleanup(() =>
+                  voiceLease(scope.session_id, null, connectionId),
+                );
                 if (active.get(scope.session_id)?.stop === stop)
                   active.delete(scope.session_id);
                 await cleanup(() => testing.onEnd?.());
@@ -136,11 +155,15 @@ export function attachVoice(
             renewalPending = true;
             renewing = (async () => {
               if (!renewLease) return;
-              if (!ended) await getView({ ...scope, actor: "agent" });
+              if (!ended)
+                confirmation.observeView(
+                  await getView({ ...scope, actor: "agent" }),
+                );
               if (!renewLease) return;
               await voiceLease(
                 scope.session_id,
                 new Date(Date.now() + 20000).toISOString(),
+                connectionId,
               );
             })()
               .catch(() => void stop())
@@ -153,6 +176,7 @@ export function attachVoice(
             Math.min(testing.maximumSessionMs ?? 7 * 60000, 7 * 60000),
           );
           active.set(scope.session_id, { fence: scope.fence, stop });
+          confirmation.announceCapability();
           let windowStart = Date.now(),
             bytes = 0;
           ws.on("message", (data, binary) => {
@@ -170,6 +194,7 @@ export function attachVoice(
                 if (msg.type === "stop") void stop();
                 else if (msg.type === "interrupt") {
                   const generation = nova.interrupt();
+                  void confirmation.interrupt(generation);
                   if (
                     typeof msg.request_id === "string" &&
                     msg.request_id.length > 0 &&
@@ -180,8 +205,15 @@ export function attachVoice(
                       request_id: msg.request_id,
                       generation,
                     });
-                } else if (msg.type === "text" && typeof msg.text === "string")
+                } else if (msg.type === "readback_played") {
+                  void confirmation.playbackAck(msg).catch(() => void stop());
+                } else if (
+                  msg.type === "text" &&
+                  typeof msg.text === "string"
+                ) {
+                  void confirmation.typedInput();
                   nova.userText(msg.text);
+                }
               }
             } catch {
               send({
@@ -197,6 +229,7 @@ export function attachVoice(
             await voiceLease(
               scope.session_id,
               new Date(Date.now() + 20000).toISOString(),
+              connectionId,
             );
             if (ended) return;
             // Ownership can change during a slow initial lease/MCP acquisition.
@@ -208,7 +241,22 @@ export function attachVoice(
             if (ended) return;
             nova = new NovaSession(mcp, send, {
               ...testing,
+              onProviderEvidence: (event) => {
+                if (!ended) confirmation.observeProvider(event);
+                testing.onProviderEvidence?.(event);
+              },
+              transformToolResult: async (name, args, result) => {
+                const authoritative = await confirmation.transformToolResult(
+                  name,
+                  args,
+                  result,
+                );
+                return testing.transformToolResult
+                  ? testing.transformToolResult(name, args, authoritative)
+                  : authoritative;
+              },
               onTool: (name, args, result) => {
+                if (!ended) confirmation.observeView(result);
                 // Only the authoritative tool result can propose a reset. The
                 // model cannot provide customer consent or its own token.
                 if (

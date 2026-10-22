@@ -188,7 +188,7 @@ export function Crew() {
             <h2>Keep the order moving.</h2>
             <p>
               {v.session.owner === "staff"
-                ? "You have control. AI changes and live voice are stopped. Customer screen confirmation is still required after staff edits."
+                ? "You have control. AI changes and live voice are stopped. Customer confirmation is still required after staff edits."
                 : "Take control to pause AI changes and live voice, then help with this draft."}
             </p>
             <div className="button-row">

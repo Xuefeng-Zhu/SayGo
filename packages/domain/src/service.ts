@@ -10,8 +10,17 @@ import type {
   QuoteSnapshot,
   Scope,
   View,
+  PrepareVoiceConfirmationInput,
+  ArmVoiceConfirmationInput,
+  VoiceOrderEvidence,
 } from "@saygo/contracts";
-import { toolSchemas } from "@saygo/contracts";
+import {
+  toolSchemas,
+  prepareVoiceConfirmationSchema,
+  armVoiceConfirmationSchema,
+  voiceOrderEvidenceSchema,
+  isExplicitVoiceConfirmation,
+} from "@saygo/contracts";
 import type { ToolName } from "@saygo/contracts";
 import {
   config,
@@ -21,11 +30,17 @@ import {
   clearEntities,
   type Tx,
 } from "@saygo/db";
-import type { SessionRow, CartUndo } from "../../db/src/schema.js";
+import type {
+  SessionRow,
+  CartUndo,
+  QuoteRow,
+  VoiceConfirmationRow,
+} from "../../db/src/schema.js";
 import { applyCommands, assert, priceCart, product } from "./engine.js";
 import { compareMenuPrices } from "./menu-prices.js";
 import { cartReceipt } from "./cart-receipt.js";
 import { findMealSavings } from "./meal-savings.js";
+import { voiceReadback } from "./voice-readback.js";
 export const hash = (value: unknown) =>
   createHash("sha256")
     .update(typeof value === "string" ? value : JSON.stringify(value))
@@ -121,6 +136,10 @@ export async function withScope<T>(
   return transaction(async (tx) => fn(await context(tx, scope)));
 }
 async function invalidate(c: Context) {
+  if (c.s.voice_confirmation) {
+    c.s.voice_confirmation = null;
+    await c.tx.update("interactions", c.s.id, { voice_confirmation: null });
+  }
   if (c.s.active_quote_id) {
     const q = await c.tx.get("quotes", c.s.active_quote_id);
     if (q) await c.tx.update("quotes", q.id, { valid: false });
@@ -384,6 +403,40 @@ async function view(c: Context, summary = ""): Promise<View> {
       : null;
   const approval = q ? await c.tx.get("approvals", q.id) : null;
   const order = await c.tx.get("orders", c.s.id);
+  const w = c.s.voice_confirmation;
+  const voiceConfirmation =
+    q &&
+    candidate &&
+    w &&
+    !order &&
+    w.quote_id === q.id &&
+    w.session_id === c.s.id &&
+    w.epoch === c.s.epoch &&
+    w.fence === c.s.fence &&
+    w.cart_version === c.cart.version &&
+    w.connection_id === c.s.voice_connection_id &&
+    c.s.owner === "ai" &&
+    !c.s.needs_staff_review &&
+    c.s.voice_until &&
+    new Date(c.s.voice_until).getTime() > Date.now() &&
+    new Date(w.expires_at).getTime() > Date.now() &&
+    w.payload_hash === candidate.payload_hash &&
+    w.readback_text === voiceReadback(candidate.snapshot)
+      ? {
+          readback_id: w.readback_id,
+          quote_id: w.quote_id,
+          session_id: w.session_id,
+          epoch: w.epoch,
+          fence: w.fence,
+          cart_version: w.cart_version,
+          readback_hash: w.readback_hash,
+          readback_text: w.readback_text,
+          totals: w.totals,
+          status: w.status,
+          ready_at: w.ready_at,
+          expires_at: w.expires_at,
+        }
+      : null;
   const undoReason = undoUnavailable(c, Boolean(order));
   const quote: Quote | null = q
     ? {
@@ -409,6 +462,7 @@ async function view(c: Context, summary = ""): Promise<View> {
     totals: priced.totals,
     unresolved_choices: priced.issues,
     quote,
+    voice_confirmation: voiceConfirmation,
     order: order
       ? {
           id: order.id,
@@ -449,6 +503,7 @@ export async function beginInteraction(laneId: string) {
           fence: prior.fence + 1,
           staff_message: null,
           active_quote_id: null,
+          voice_confirmation: null,
         });
       }
     }
@@ -468,6 +523,8 @@ export async function beginInteraction(laneId: string) {
       needs_staff_review: false,
       staff_message: null,
       voice_until: null,
+      voice_connection_id: null,
+      voice_confirmation: null,
       created_at: new Date().toISOString(),
       expires_at: new Date(Date.now() + 15 * 60000).toISOString(),
     });
@@ -617,11 +674,366 @@ export async function approve(scope: Scope, quoteId: string) {
         session_id: c.s.id,
         created_at: new Date().toISOString(),
         consumed_at: null,
+        source: "screen",
       });
     await audit(c, "customer_approved");
     return view(c, "You approved the displayed quote.");
   });
 }
+
+function currentVoice(c: Context, connectionId: string) {
+  assert(
+    c.scope.actor === "agent",
+    "VOICE_CONSENT",
+    "Only the voice gateway can use audio evidence.",
+    403,
+  );
+  editable(c);
+  assert(
+    c.s.voice_connection_id === connectionId &&
+      c.s.voice_until &&
+      new Date(c.s.voice_until).getTime() > Date.now(),
+    "VOICE_CONNECTION",
+    "This voice connection ended. Start a new review.",
+    409,
+  );
+}
+
+async function pendingVoice(
+  c: Context,
+  connectionId: string,
+  readbackId: string,
+) {
+  currentVoice(c, connectionId);
+  const pending = c.s.voice_confirmation;
+  assert(
+    pending &&
+      pending.connection_id === connectionId &&
+      pending.readback_id === readbackId &&
+      pending.session_id === c.s.id &&
+      pending.epoch === c.s.epoch &&
+      pending.fence === c.s.fence &&
+      pending.cart_version === c.cart.version &&
+      new Date(pending.expires_at).getTime() > Date.now(),
+    "VOICE_CONFIRMATION_EXPIRED",
+    "Read back the current order again before confirming.",
+    409,
+  );
+  const quote = await validQuote(c, pending.quote_id);
+  assert(
+    quote.payload_hash === pending.payload_hash &&
+      draftHash({
+        quote_id: quote.id,
+        snapshot: quote.snapshot,
+        readback_text: pending.readback_text,
+      }) === pending.readback_hash &&
+      pending.readback_text === voiceReadback(quote.snapshot),
+    "STALE_QUOTE",
+    "The order or readback changed. Review it again.",
+    409,
+  );
+  return { pending, quote };
+}
+
+// These functions are deliberately absent from MCP tools and customer JSON APIs.
+// Their evidence is supplied by the authenticated runtime's provider/audio gate.
+export async function prepareVoiceConfirmation(
+  scope: Scope,
+  input: PrepareVoiceConfirmationInput,
+): Promise<View> {
+  const a = prepareVoiceConfirmationSchema.parse(input);
+  return withScope(scope, async (c) => {
+    currentVoice(c, a.connection_id);
+    await noOrder(c);
+    const quote = await validQuote(c, a.quote_id);
+    assert(
+      !(await c.tx.get("approvals", quote.id)),
+      "CONSENT_ALREADY_RECORDED",
+      "This quote already has customer consent. Check the current order.",
+      409,
+    );
+    const key = `${c.s.id}:voice-readback:${a.request_id}`,
+      payloadHash = draftHash(a);
+    const previous = await c.tx.get("idempotency", key);
+    if (previous) {
+      assert(
+        previous.payload_hash === payloadHash,
+        "IDEMPOTENCY_MISMATCH",
+        "This readback request ID was used for a different order.",
+      );
+      assert(
+        c.s.voice_confirmation?.request_id === a.request_id,
+        "VOICE_CONFIRMATION_EXPIRED",
+        "Start a new readback request.",
+        409,
+      );
+      await pendingVoice(
+        c,
+        a.connection_id,
+        c.s.voice_confirmation.readback_id,
+      );
+      return view(c);
+    }
+    const text = voiceReadback(quote.snapshot);
+    const window: VoiceConfirmationRow = {
+      readback_id: randomUUID(),
+      quote_id: quote.id,
+      session_id: c.s.id,
+      epoch: c.s.epoch,
+      fence: c.s.fence,
+      cart_version: c.cart.version,
+      connection_id: a.connection_id,
+      request_id: a.request_id,
+      payload_hash: quote.payload_hash,
+      readback_hash: draftHash({
+        quote_id: quote.id,
+        snapshot: quote.snapshot,
+        readback_text: text,
+      }),
+      readback_text: text,
+      totals: quote.snapshot.totals,
+      status: "reading",
+      arm_turn_sequence: null,
+      ready_at: null,
+      expires_at: new Date(
+        Math.min(new Date(quote.expires_at).getTime(), Date.now() + 60000),
+      ).toISOString(),
+    };
+    c.s.voice_confirmation = window;
+    await c.tx.update("interactions", c.s.id, { voice_confirmation: window });
+    c.tx.put("idempotency", {
+      key,
+      payload_hash: payloadHash,
+      quote_id: quote.id,
+      created_at: new Date().toISOString(),
+    });
+    await audit(c, "voice_readback_prepared", {
+      quote_id: quote.id,
+      readback_id: window.readback_id,
+      cart_version: c.cart.version,
+    });
+    return view(
+      c,
+      "Read back these exact items and total before asking for a voice confirmation.",
+    );
+  });
+}
+
+export async function armVoiceConfirmation(
+  scope: Scope,
+  input: ArmVoiceConfirmationInput,
+): Promise<View> {
+  const a = armVoiceConfirmationSchema.parse(input);
+  return withScope(scope, async (c) => {
+    const { pending, quote } = await pendingVoice(
+      c,
+      a.connection_id,
+      a.readback_id,
+    );
+    await noOrder(c);
+    assert(
+      pending.readback_hash === a.readback_hash,
+      "VOICE_READBACK",
+      "The readback does not match this order.",
+      409,
+    );
+    if (pending.status === "awaiting_confirmation") {
+      assert(
+        pending.arm_turn_sequence === a.turn_sequence,
+        "VOICE_READBACK",
+        "This readback was already armed for another turn.",
+        409,
+      );
+      return view(c);
+    }
+    const now = Date.now();
+    const armed: VoiceConfirmationRow = {
+      ...pending,
+      status: "awaiting_confirmation",
+      arm_turn_sequence: a.turn_sequence,
+      ready_at: new Date(now).toISOString(),
+      expires_at: new Date(
+        Math.min(new Date(quote.expires_at).getTime(), now + 20000),
+      ).toISOString(),
+    };
+    c.s.voice_confirmation = armed;
+    await c.tx.update("interactions", c.s.id, { voice_confirmation: armed });
+    await audit(c, "voice_confirmation_ready", {
+      quote_id: quote.id,
+      readback_id: armed.readback_id,
+    });
+    return view(
+      c,
+      "Say Yes, place the order to confirm, or tell me what to change.",
+    );
+  });
+}
+
+export async function confirmVoiceOrder(
+  scope: Scope,
+  input: VoiceOrderEvidence,
+): Promise<View> {
+  const a = voiceOrderEvidenceSchema.parse(input),
+    proofHash = draftHash(a);
+  return withScope(scope, async (c) => {
+    assert(
+      scope.actor === "agent",
+      "VOICE_CONSENT",
+      "Only the voice gateway can use audio evidence.",
+      403,
+    );
+    const existing = await c.tx.get("orders", c.s.id);
+    if (existing) {
+      const approval = await c.tx.get("approvals", existing.quote_id);
+      assert(
+        approval?.source === "voice" &&
+          approval.session_id === c.s.id &&
+          approval.voice_evidence?.proof_hash === proofHash &&
+          approval.voice_evidence.connection_id === a.connection_id &&
+          approval.voice_evidence.readback_id === a.readback_id &&
+          approval.voice_evidence.utterance_id === a.utterance_id,
+        "IDEMPOTENCY_MISMATCH",
+        "An order already exists; this is not the original voice confirmation.",
+        409,
+      );
+      return view(c, "This is the existing order; no duplicate was sent.");
+    }
+    const { pending, quote } = await pendingVoice(
+      c,
+      a.connection_id,
+      a.readback_id,
+    );
+    assert(
+      pending.status === "awaiting_confirmation" &&
+        pending.ready_at !== null &&
+        pending.arm_turn_sequence !== null &&
+        a.turn_sequence > pending.arm_turn_sequence,
+      "VOICE_NOT_READY",
+      "Wait for the complete readback before confirming.",
+      409,
+    );
+    const now = Date.now(),
+      ready = new Date(pending.ready_at).getTime(),
+      expiry = new Date(pending.expires_at).getTime();
+    assert(
+      a.started_at >= ready &&
+        a.finalized_at > a.started_at &&
+        a.finalized_at <= now &&
+        a.finalized_at < expiry &&
+        now < expiry,
+      "VOICE_STALE_AUDIO",
+      "That audio predates or outlived this confirmation window. Review again.",
+      409,
+    );
+    if (!isExplicitVoiceConfirmation(a.transcript)) {
+      c.s.voice_confirmation = null;
+      await c.tx.update("interactions", c.s.id, { voice_confirmation: null });
+      await audit(c, "voice_confirmation_declined", {
+        readback_id: a.readback_id,
+      });
+      return view(
+        c,
+        "Your draft is unchanged. Tell me what to change, or ask for a new review before confirming.",
+      );
+    }
+    const prior = await c.tx.get("approvals", quote.id);
+    assert(
+      !prior,
+      "CONSENT_ALREADY_RECORDED",
+      "This quote already has customer consent. Check the current order.",
+      409,
+    );
+    c.tx.put("approvals", {
+      quote_id: quote.id,
+      session_id: c.s.id,
+      source: "voice",
+      created_at: new Date(now).toISOString(),
+      consumed_at: null,
+      voice_evidence: {
+        connection_id: a.connection_id,
+        readback_id: a.readback_id,
+        utterance_id: a.utterance_id,
+        proof_hash: proofHash,
+      },
+    });
+    await audit(c, "customer_voice_approved", {
+      quote_id: quote.id,
+      readback_id: a.readback_id,
+      utterance_id: a.utterance_id,
+    });
+    return commitApprovedQuote(c, quote);
+  });
+}
+
+export async function invalidateVoiceConfirmation(
+  scope: Scope,
+  connectionId: string,
+): Promise<void> {
+  assert(
+    connectionId.length > 0 && connectionId.length <= 128,
+    "VOICE_CONNECTION",
+    "Invalid voice connection.",
+    400,
+  );
+  await withScope(scope, async (c) => {
+    assert(
+      scope.actor === "agent",
+      "VOICE_CONSENT",
+      "Only the voice gateway can invalidate its readback.",
+      403,
+    );
+    if (c.s.voice_confirmation?.connection_id !== connectionId) return;
+    c.s.voice_confirmation = null;
+    await c.tx.update("interactions", c.s.id, { voice_confirmation: null });
+  });
+}
+
+async function commitApprovedQuote(c: Context, q: QuoteRow): Promise<View> {
+  const approval = await c.tx.get("approvals", q.id);
+  assert(
+    approval && approval.session_id === c.s.id && !approval.consumed_at,
+    "CONSENT_REQUIRED",
+    "Use the customer Confirm order button for this exact quote.",
+    403,
+  );
+  const orderId = randomUUID();
+  await c.tx.update("approvals", q.id, {
+    consumed_at: new Date().toISOString(),
+  });
+  const restaurant = (await c.tx.get("restaurants", RESTAURANT))!;
+  const number = restaurant.order_number + 1;
+  await c.tx.update("restaurants", RESTAURANT, { order_number: number });
+  const now = new Date().toISOString();
+  c.tx.put("orders", {
+    id: orderId,
+    number,
+    session_id: c.s.id,
+    restaurant_id: RESTAURANT,
+    quote_id: q.id,
+    external_key: `saygo:${c.s.id}:submit`,
+    payload_hash: q.payload_hash,
+    snapshot: q.snapshot,
+    status: "submitted",
+    created_at: now,
+    updated_at: now,
+  });
+  c.tx.put("jobs", {
+    id: randomUUID(),
+    order_id: orderId,
+    state: "pending",
+    attempts: 0,
+    available_at: now,
+    lease_until: null,
+    lease_token: null,
+  });
+  await invalidate(c);
+  await audit(c, "order_submitted");
+  return view(
+    c,
+    "Sent to the POS sandbox. Restaurant acceptance is pending; payment is due at the window.",
+  );
+}
+
 export async function tool(
   scope: Scope,
   name: ToolName,
@@ -715,51 +1127,7 @@ export async function tool(
       editable(c);
       voiceIdle(c);
       const q = await validQuote(c, a.quote_id);
-      const approval = await c.tx.get("approvals", q.id);
-      assert(
-        approval && approval.session_id === c.s.id && !approval.consumed_at,
-        "CONSENT_REQUIRED",
-        "Use the customer Confirm order button for this exact quote.",
-        403,
-      );
-      const orderId = randomUUID();
-      await c.tx.update("approvals", q.id, {
-        consumed_at: new Date().toISOString(),
-      });
-      const restaurant = (await c.tx.get("restaurants", RESTAURANT))!;
-      const number = restaurant.order_number + 1;
-      await c.tx.update("restaurants", RESTAURANT, { order_number: number });
-      const now = new Date().toISOString();
-      c.tx.put("orders", {
-        id: orderId,
-        number,
-        session_id: c.s.id,
-        restaurant_id: RESTAURANT,
-        quote_id: q.id,
-        external_key: `saygo:${c.s.id}:submit`,
-        payload_hash: q.payload_hash,
-        snapshot: q.snapshot,
-        status: "submitted",
-        created_at: now,
-        updated_at: now,
-      });
-      c.tx.put("jobs", {
-        id: randomUUID(),
-        order_id: orderId,
-        state: "pending",
-        attempts: 0,
-        available_at: now,
-        lease_until: null,
-        lease_token: null,
-      });
-      await invalidate(c);
-      await audit(c, "order_submitted");
-      return {
-        ...(await view(
-          c,
-          "Sent to the POS sandbox. Restaurant acceptance is pending; payment is due at the window.",
-        )),
-      };
+      return { ...(await commitApprovedQuote(c, q)) };
     }
     editable(c);
     await noOrder(c);
@@ -1111,10 +1479,65 @@ export async function resetDemo() {
   );
 }
 
-export async function voiceLease(sessionId: string, until: string | null) {
+export async function voiceLease(
+  sessionId: string,
+  until: string | null,
+  connectionId?: string,
+) {
+  if (connectionId !== undefined)
+    assert(
+      connectionId.length > 0 && connectionId.length <= 128,
+      "VOICE_CONNECTION",
+      "Invalid voice connection.",
+      400,
+    );
   await transaction(async (tx) => {
     const session = await tx.get("interactions", sessionId);
-    if (session)
-      await tx.update("interactions", sessionId, { voice_until: until });
+    if (!session) return;
+    if (connectionId === undefined) {
+      await tx.update("interactions", sessionId, {
+        voice_until: until,
+        ...(until === null
+          ? { voice_connection_id: null, voice_confirmation: null }
+          : {}),
+      });
+      return;
+    }
+    if (until === null) {
+      // A late cleanup from an old socket cannot clear a newer connection.
+      if (session.voice_connection_id !== connectionId) return;
+      await tx.update("interactions", sessionId, {
+        voice_until: null,
+        voice_connection_id: null,
+        voice_confirmation: null,
+      });
+      return;
+    }
+    assert(
+      session.status === "active" &&
+        new Date(session.expires_at).getTime() > Date.now(),
+      "SESSION_EXPIRED",
+      "This voice interaction ended.",
+      401,
+    );
+    const same = session.voice_connection_id === connectionId;
+    assert(
+      same ||
+        !session.voice_connection_id ||
+        !session.voice_until ||
+        new Date(session.voice_until).getTime() < Date.now(),
+      "VOICE_CONNECTION",
+      "A different voice connection is still active.",
+      409,
+    );
+    await tx.update("interactions", sessionId, {
+      voice_until: until,
+      voice_connection_id: connectionId,
+      ...(!same ||
+      !session.voice_until ||
+      new Date(session.voice_until).getTime() < Date.now()
+        ? { voice_confirmation: null }
+        : {}),
+    });
   });
 }

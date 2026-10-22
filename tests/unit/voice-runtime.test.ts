@@ -26,7 +26,17 @@ const mock = vi.hoisted(() => {
     scopeForToken: vi.fn(),
     getView: vi.fn(),
     voiceLease:
-      vi.fn<(sessionId: string, until: string | null) => Promise<void>>(),
+      vi.fn<
+        (
+          sessionId: string,
+          until: string | null,
+          connectionId?: string,
+        ) => Promise<void>
+      >(),
+    prepareVoiceConfirmation: vi.fn(),
+    armVoiceConfirmation: vi.fn(),
+    confirmVoiceOrder: vi.fn(),
+    invalidateVoiceConfirmation: vi.fn(),
     openMcp: vi.fn<() => Promise<typeof client>>(),
     onEnd: vi.fn(),
     onTool: vi.fn(),
@@ -81,6 +91,10 @@ vi.mock("@saygo/domain", async () => ({
   scopeForToken: mock.scopeForToken,
   getView: mock.getView,
   voiceLease: mock.voiceLease,
+  prepareVoiceConfirmation: mock.prepareVoiceConfirmation,
+  armVoiceConfirmation: mock.armVoiceConfirmation,
+  confirmVoiceOrder: mock.confirmVoiceOrder,
+  invalidateVoiceConfirmation: mock.invalidateVoiceConfirmation,
   tool: mock.tool,
   staffAction: mock.staffAction,
   activeScope: mock.activeScope,
@@ -122,7 +136,7 @@ function deferred() {
 async function flush() {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 }
-async function connect() {
+async function connect(keepCapabilityFrame = false) {
   server.emit(
     "upgrade",
     {
@@ -133,7 +147,14 @@ async function connect() {
     Buffer.alloc(0),
   );
   await flush();
-  return mock.sockets.at(-1)!;
+  const socket = mock.sockets.at(-1)!;
+  if (
+    !keepCapabilityFrame &&
+    socket?.send.mock.calls.length === 1 &&
+    String(socket.send.mock.calls[0][0]).includes('"confirmation_unavailable"')
+  )
+    socket.send.mockClear();
+  return socket;
 }
 beforeEach(async () => {
   vi.resetModules();
@@ -162,6 +183,7 @@ beforeEach(async () => {
     },
   });
   mock.voiceLease.mockResolvedValue();
+  mock.invalidateVoiceConfirmation.mockResolvedValue(undefined);
   mock.openMcp.mockResolvedValue(mock.client);
   mock.client.close.mockResolvedValue();
   mock.staff.mockResolvedValue({ id: "crew", role: "crew" });
@@ -179,6 +201,90 @@ afterEach(async () => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+it("announces unavailable voice confirmation with the authenticated scope", async () => {
+  const socket = await connect(true);
+  expect(JSON.parse(socket.send.mock.calls[0][0] as string)).toEqual({
+    type: "confirmation_unavailable",
+    code: "UNSUPPORTED_USER_TURN_BOUNDARY",
+    text: "Voice confirmation is unavailable with this provider. Stop voice and use Confirm order on the screen.",
+    session_id: "voice-unit",
+    epoch: 1,
+    fence: 2,
+  });
+  expect(mock.prepareVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.armVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.confirmVoiceOrder).not.toHaveBeenCalled();
+});
+it("never enables consent from a model review or final USER/ASSISTANT events", async () => {
+  await connect();
+  const result = await mock.options.transformToolResult!(
+    "prepare_order_review",
+    { transcript: "Yes, place the order" },
+    {
+      quote: { id: "f47ce7a1-c7be-4653-8da6-81801e7369aa" },
+      voice_confirmation_available: true,
+    },
+  );
+  expect(result.voice_confirmation_available).toBe(false);
+  for (const role of ["USER", "ASSISTANT"])
+    mock.options.onProviderEvidence!({
+      name: "contentEnd",
+      at: Date.now(),
+      generation: 0,
+      contentId: "provider-final",
+      completionId: "provider-completion",
+      role,
+      contentType: "TEXT",
+      final: true,
+      text: "Yes, place the order.",
+      stopReason: "END_TURN",
+    });
+  await flush();
+  expect(mock.prepareVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.armVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.confirmVoiceOrder).not.toHaveBeenCalled();
+});
+it("binds lease renewal, cleanup and consent invalidation to one connection UUID", async () => {
+  await connect();
+  const connection = mock.voiceLease.mock.calls[0][2];
+  expect(connection).toMatch(/^[a-f0-9-]{36}$/);
+  await vi.advanceTimersByTimeAsync(1000);
+  await runtime.stopVoice("voice-unit");
+  for (const [, , actual] of mock.voiceLease.mock.calls)
+    expect(actual).toBe(connection);
+  expect(mock.invalidateVoiceConfirmation).toHaveBeenCalledWith(
+    expect.objectContaining({ actor: "agent", session_id: "voice-unit" }),
+    connection,
+  );
+});
+it("ignores browser transcript proofs and remains ineligible after typed WS input", async () => {
+  const socket = await connect();
+  socket.emit(
+    "message",
+    Buffer.from(
+      JSON.stringify({ type: "text", text: "Yes, place the order." }),
+    ),
+    false,
+  );
+  socket.emit(
+    "message",
+    Buffer.from(
+      JSON.stringify({
+        type: "readback_played",
+        readback_id: "f47ce7a1-c7be-4653-8da6-81801e7369aa",
+        readback_hash: "a".repeat(64),
+        generation: 0,
+        transcript: "Yes, place the order",
+        final: true,
+      }),
+    ),
+    false,
+  );
+  await flush();
+  expect(mock.nova.userText).toHaveBeenCalledWith("Yes, place the order.");
+  expect(mock.armVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.confirmVoiceOrder).not.toHaveBeenCalled();
 });
 it("contains failed lease cleanup in socket callbacks and permits reconnect", async () => {
   const socket = await connect();
@@ -229,7 +335,11 @@ it("continues overload cleanup when closing Nova and MCP both fail", async () =>
   mock.client.close.mockRejectedValueOnce(new Error("transport closed"));
   expect(() => socket.emit("message", Buffer.alloc(1024), true)).not.toThrow();
   await expect(runtime.stopVoice("voice-unit")).resolves.toBeUndefined();
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
   expect(mock.onEnd).toHaveBeenCalledOnce();
 });
 it("waits for a late initial lease before clearing it and never starts a provider", async () => {
@@ -248,7 +358,11 @@ it("waits for a late initial lease before clearing it and never starts a provide
   await stopped;
   expect(mock.openMcp).not.toHaveBeenCalled();
   expect(mock.nova.start).not.toHaveBeenCalled();
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
 });
 it("closes a late acquired MCP client before allowing the next connection", async () => {
   const connection = deferred();
@@ -280,7 +394,11 @@ it("settles an in-flight lease renewal before the final release", async () => {
   );
   renewal.resolve();
   await stopped;
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
 });
 it("renews consent blocking while tools drain and keeps the registration exclusive", async () => {
   await connect();
@@ -300,7 +418,11 @@ it("renews consent blocking while tools drain and keeps the registration exclusi
   );
   drain.resolve();
   await stopped;
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
 });
 it("memoizes reentrant stop and cannot release a replacement connection", async () => {
   const first = await connect();
@@ -325,7 +447,11 @@ it("reports startup failure and releases the registration without fixture fallba
     expect.stringContaining('"type":"error"'),
   );
   expect(mock.nova.start).not.toHaveBeenCalled();
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
   const next = await connect();
   expect(next.close).not.toHaveBeenCalled();
 });
@@ -441,7 +567,11 @@ it("a successful spoken staff request stops voice and suppresses late model outp
   expect(socket.close).toHaveBeenCalled();
   expect(mock.nova.close).toHaveBeenCalledOnce();
   expect(mock.nova.drain).toHaveBeenCalledOnce();
-  expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+  expect(mock.voiceLease).toHaveBeenLastCalledWith(
+    "voice-unit",
+    null,
+    expect.any(String),
+  );
   const late = await connect();
   expect(late.close).toHaveBeenCalledWith(
     1008,
@@ -529,7 +659,11 @@ it("HTTP takeover fences before draining and returns only after voice cleanup", 
       undefined,
       { expected_fence: 2, request_id: payload.request_id },
     );
-    expect(mock.voiceLease).toHaveBeenLastCalledWith(payload.session_id, null);
+    expect(mock.voiceLease).toHaveBeenLastCalledWith(
+      payload.session_id,
+      null,
+      expect.any(String),
+    );
   } finally {
     drain.resolve();
     await runtime.stopVoice(payload.session_id);
@@ -581,7 +715,11 @@ it("customer help fences via MCP before waiting for the voice tool drain", async
     });
     drain.resolve();
     expect((await http.response).status).toBe(200);
-    expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+    expect(mock.voiceLease).toHaveBeenLastCalledWith(
+      "voice-unit",
+      null,
+      expect.any(String),
+    );
   } finally {
     drain.resolve();
     await http.close();
@@ -593,7 +731,11 @@ it("customer reset waits for voice tools and lease cleanup before checking the o
   const drain = deferred();
   mock.nova.drain.mockReturnValueOnce(drain.promise);
   mock.tool.mockImplementation(async (scope, name, args) => {
-    expect(mock.voiceLease).toHaveBeenLastCalledWith("voice-unit", null);
+    expect(mock.voiceLease).toHaveBeenLastCalledWith(
+      "voice-unit",
+      null,
+      expect.any(String),
+    );
     return { scope, name, args, reset: true };
   });
   const { app } = await import("../../apps/runtime/src/app.js");

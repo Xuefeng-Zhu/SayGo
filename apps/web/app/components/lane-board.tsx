@@ -12,6 +12,7 @@ import { Header, Footer, Login } from "./shell";
 import { ItemEditor, MenuPanel, Modal, OrderLines, OrderTotals } from "./order";
 import { useVoice, type ResetProposal } from "./use-voice";
 import { CorrectionReceipt, MealSavingsCard } from "./draft-improvements";
+import { VoiceConfirmationPanel } from "./voice-confirmation";
 type Config = {
   demo: boolean;
   voice: boolean;
@@ -148,6 +149,7 @@ export function LaneBoard() {
     view
       ? {
           fence: view.session.fence,
+          cartVersion: view.cart_version,
           enabled:
             view.session.owner === "ai" &&
             !view.session.needs_staff_review &&
@@ -155,6 +157,20 @@ export function LaneBoard() {
         }
       : undefined,
   );
+  const voiceConfirmation =
+    view &&
+    voice.active &&
+    !voice.confirmationUnavailable &&
+    view.session.owner === "ai" &&
+    !view.session.needs_staff_review &&
+    !view.order &&
+    view.voice_confirmation?.session_id === view.session.id &&
+    view.voice_confirmation.epoch === view.session.epoch &&
+    view.voice_confirmation.fence === view.session.fence &&
+    view.voice_confirmation.cart_version === view.cart_version &&
+    view.voice_confirmation.quote_id === view.quote?.id
+      ? view.voice_confirmation
+      : null;
   useEffect(() => {
     mounted.current = true;
     void api<Config>("/config")
@@ -507,6 +523,9 @@ export function LaneBoard() {
                           ? "Check the items, modifications, and exact total. Payment is due at the window."
                           : summary}
                 </p>
+                {voiceConfirmation && (
+                  <VoiceConfirmationPanel confirmation={voiceConfirmation} />
+                )}
                 {view.quote && !view.order ? (
                   <>
                     <p className="small">
@@ -526,6 +545,15 @@ export function LaneBoard() {
                     >
                       Confirm order
                     </button>
+                    {voice.active && (
+                      <p className="small">
+                        {voice.confirmationUnavailable
+                          ? "Stop voice and confirm this order on screen. Voice confirmation is unavailable for this connection."
+                          : voiceConfirmation
+                            ? "Voice confirmation is available after the full readback. Stop voice to use this button instead."
+                            : "Ask SayGo to review this order for voice confirmation, or stop voice to use this button."}
+                      </p>
+                    )}
                     <button
                       className="outline wide"
                       disabled={locked}
@@ -558,7 +586,11 @@ export function LaneBoard() {
                       Browse menu
                     </button>
                     {voice.active && (
-                      <small>Stop live voice before final review.</small>
+                      <small>
+                        {voice.confirmationUnavailable
+                          ? "Stop voice to review and confirm on screen."
+                          : "Say “review my order” for a voice readback, or stop voice to review on screen."}
+                      </small>
                     )}
                   </>
                 ) : null}
@@ -702,6 +734,12 @@ export function LaneBoard() {
                         </label>
                         <button disabled={locked || !text.trim()}>Send</button>
                       </form>
+                      {voice.active && (
+                        <p className="small">
+                          Typed messages do not confirm an order. Use your voice
+                          after the readback or the screen button.
+                        </p>
+                      )}
                     </details>
                   </section>
                 )}

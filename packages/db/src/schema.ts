@@ -5,8 +5,21 @@ import type {
   QuoteSnapshot,
   Cart,
   CartReceipt,
+  VoiceConfirmation,
 } from "@saygo/contracts";
 
+export type VoiceConfirmationRow = VoiceConfirmation & {
+  connection_id: string;
+  request_id: string;
+  payload_hash: string;
+  arm_turn_sequence: number | null;
+};
+export type VoiceApprovalEvidence = {
+  connection_id: string;
+  readback_id: string;
+  utterance_id: string;
+  proof_hash: string;
+};
 export type SessionRow = {
   id: string;
   restaurant_id: string;
@@ -17,6 +30,8 @@ export type SessionRow = {
   status: string;
   token_hash: string;
   voice_until: string | null;
+  voice_connection_id?: string | null;
+  voice_confirmation?: VoiceConfirmationRow | null;
   needs_staff_review: boolean;
   staff_message: string | null;
   created_at: string;
@@ -97,6 +112,8 @@ export type Rows = {
     session_id: string;
     created_at: string;
     consumed_at: string | null;
+    source?: "screen" | "voice";
+    voice_evidence?: VoiceApprovalEvidence;
   };
   orders: OrderRow;
   jobs: {

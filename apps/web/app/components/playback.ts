@@ -9,7 +9,10 @@ export class PlaybackQueue {
   generation = 0;
   next = 0;
   private sources = new Set<AudioNodeLike>();
-  constructor(private now: () => number) {}
+  constructor(
+    private now: () => number,
+    private onDrained?: () => void,
+  ) {}
   enqueue(
     generation: number,
     duration: number,
@@ -28,7 +31,10 @@ export class PlaybackQueue {
       throw new Error("Playback queue exceeded its limit");
     const source = start(at);
     this.sources.add(source);
-    source.onended = () => this.sources.delete(source);
+    source.onended = () => {
+      if (this.sources.delete(source) && this.sources.size === 0)
+        this.onDrained?.();
+    };
     this.next = at + duration;
     return true;
   }
@@ -38,15 +44,16 @@ export class PlaybackQueue {
     this.clear();
   }
   clear() {
-    for (const source of this.sources) {
+    const sources = [...this.sources];
+    this.sources.clear();
+    this.next = this.now();
+    for (const source of sources) {
       try {
         source.stop();
       } catch {
         /* already ended */
       }
     }
-    this.sources.clear();
-    this.next = this.now();
   }
   get queuedSources() {
     return this.sources.size;

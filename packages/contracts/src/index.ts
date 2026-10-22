@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { VoiceConfirmation } from "./voice-confirmation";
+export * from "./voice-confirmation";
 export const id = z
   .string()
   .min(1)
@@ -331,6 +333,7 @@ export type View = {
   totals: Totals;
   unresolved_choices: Issue[];
   quote: Quote | null;
+  voice_confirmation?: VoiceConfirmation | null;
   order: Order | null;
   menu: Menu;
   cart_version: number;

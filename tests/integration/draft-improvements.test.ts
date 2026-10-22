@@ -88,7 +88,10 @@ const entitySnapshot = () =>
 
 beforeAll(async () => {
   expect(config.DYNAMODB_NAMESPACE).toBe("saygo_test");
-  expect(config.DYNAMODB_ENDPOINT).toBe("http://127.0.0.1:8000");
+  // Permit an isolated local QA port while keeping production endpoints out.
+  expect(config.DYNAMODB_ENDPOINT).toMatch(
+    /^http:\/\/(?:127\.0\.0\.1|localhost):\d+\/?$/,
+  );
   await new Promise<void>((resolve) =>
     server.listen(config.SAYGO_RUNTIME_PORT, "127.0.0.1", resolve),
   );

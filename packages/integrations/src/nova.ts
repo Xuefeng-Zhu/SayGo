@@ -38,6 +38,26 @@ export type VoiceSessionOptions = {
     result: Record<string, unknown>,
   ) => void;
   maximumToolCalls?: number;
+  /** Server-only observations from the provider decoder, never browser proof. */
+  onProviderEvidence?: (e: ProviderVoiceEvidence) => void;
+  transformToolResult?: (
+    name: string,
+    args: Record<string, unknown>,
+    result: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>;
+};
+export type ProviderVoiceEvidence = {
+  name: string;
+  at: number;
+  generation: number;
+  contentId?: string;
+  completionId?: string;
+  role?: string;
+  contentType?: string;
+  final?: boolean;
+  stopReason?: string;
+  text?: string;
+  audioBytes?: number;
 };
 const usageCounts = z.object({
   speechTokens: z.number().int().nonnegative(),
@@ -94,6 +114,8 @@ export class NovaSession {
       final: boolean;
       text: string;
       generation: number;
+      contentType?: string;
+      completionId?: string;
       tool?: { name: string; id: string; args: string };
     }
   >();
@@ -270,6 +292,32 @@ export class NovaSession {
   handle(name: string, e: Record<string, unknown>) {
     const contentId = string(e.contentId),
       completion = string(e.completionId);
+    const previousBlock = this.blocks.get(contentId);
+    let observedFinal = previousBlock?.final;
+    if (name === "contentStart") {
+      try {
+        observedFinal =
+          JSON.parse(string(e.additionalModelFields) || "{}")
+            .generationStage === "FINAL";
+      } catch {
+        observedFinal = false;
+      }
+    }
+    this.options.onProviderEvidence?.({
+      name,
+      at: Date.now(),
+      generation: this.gen.generation,
+      contentId: contentId || undefined,
+      completionId: completion || previousBlock?.completionId,
+      role: string(e.role) || previousBlock?.role,
+      contentType: string(e.type) || previousBlock?.contentType,
+      final: observedFinal,
+      stopReason: string(e.stopReason) || undefined,
+      ...(name === "textOutput" ? { text: string(e.content) } : {}),
+      ...(name === "audioOutput"
+        ? { audioBytes: Buffer.from(string(e.content), "base64").length }
+        : {}),
+    });
     if (name === "completionStart") this.gen.start(completion);
     if (name === "usageEvent") {
       const counts = usageSchema.parse(e).details.total;
@@ -305,6 +353,8 @@ export class NovaSession {
         final: stage === "FINAL",
         text: "",
         generation: this.gen.generation,
+        contentType: string(e.type),
+        completionId: completion,
       });
     }
     if (name === "textOutput") {
@@ -412,6 +462,12 @@ export class NovaSession {
                 args = { ...normalized, request_id: id };
               }
               result = await this.mcp.call(request.name, args);
+              if (this.options.transformToolResult)
+                result = await this.options.transformToolResult(
+                  request.name,
+                  args,
+                  result,
+                );
               this.emit({ type: "cart_changed" });
             } catch (e) {
               if (
