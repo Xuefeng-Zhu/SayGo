@@ -7,7 +7,7 @@ SayGo is a fictional demo that binds to loopback. It has not undergone a product
 - Staff passwords are salted scrypt hashes, provisioned by the idempotent seed. Signed HttpOnly, SameSite=Strict cookies expire after eight hours. Role/enabled status is checked against DynamoDB on each staff request. Admin, crew and kitchen permissions differ.
 - Only admin/crew can start/depart lane interactions. Lane access is a random 256-bit opaque cookie with only its SHA-256 hash stored in the database. The lane ID is not a credential.
 - Server-only MCP bearer credentials are HMAC-signed, short-lived and scoped to restaurant, lane, interaction, epoch, actor and ownership fence. Every request verifies the current interaction; a new customer revokes prior cookies and tokens. Model input cannot select another restaurant or lane.
-- Customer approval is recorded outside MCP through the screen route. [Spoken approval remains disabled on the current Nova adapter](voice-confirmation.md). A spoken or typed affirmation, partial transcript or model-supplied flag cannot approve an order. Stale quotes, unresolved choices and pending staff review block approval.
+- Customer approval is recorded outside MCP through the screen route or [verified spoken recording](voice-confirmation.md). A partial transcript, typed affirmation or model-supplied flag cannot approve an order. Stale quotes, unresolved choices and pending staff review block approval.
 - Origin/Host checks, JSON limits (64 KiB), WebSocket payload/rate limits, mutation/login throttling, secure cookies under HTTPS, frame denial and no-store responses reduce common demo attack paths. The runtime is loopback-only. Origin is mandatory for cookie-authenticated POSTs. MCP requires a scoped bearer instead.
 - Menu admin choices/prices are schema-validated. DynamoDB entity keys and expressions are created server-side. Environment and restaurant scope are fixed by trusted configuration. Bulk reset uses a maintenance fence and bounded transactions; menu/staff records are preserved.
 
@@ -19,7 +19,7 @@ The app collects no voice biometrics, license plate, name, phone, payment card o
 
 ## Retention and provider boundary
 
-The runtime streams raw microphone audio in memory without writing it locally. Captions and tool-argument buffers are cleared at session end. Logs contain process/service status; audit rows contain event kinds, counts, versions and relevant record IDs. Neither stores raw audio, credentials, utterances or concern contents. Staff messages and handoff concerns have separate retention periods below.
+The runtime streams raw microphone audio in memory without writing it locally. Captions and tool-argument buffers are cleared at session end. Voice approval stores connection, readback and utterance IDs plus a proof hash; it does not retain the recording or transcript. Logs contain process/service status; audit rows contain event kinds, counts, versions and relevant record IDs. Neither stores raw audio, credentials, utterances or concern contents. Staff messages and handoff concerns have separate retention periods below.
 
 The opt-in synthetic voice QA harness has a separate evidence policy: synthetic input, provider-response WAV and private tool traces are saved in ignored owner-only `.local/voice-qa/` directories. Sanitized reports in `docs/evidence` include synthetic test captions and usage; they contain no physical microphone recording. See [voice verification](voice.md). These QA artifacts are not subject to the runtime worker's retention sweep.
 

@@ -18,6 +18,87 @@ import {
   type ProviderVoiceEvidence,
   type VoiceEvent,
 } from "../../packages/integrations/src/nova.js";
+it("retains a genuine submit request with a truthful pending response without calling MCP", async () => {
+  const call = vi.fn(),
+    onTool = vi.fn(),
+    onSubmissionPendingSent = vi.fn();
+  const retainSubmission = vi.fn(async () => ({
+    code: "PENDING_VERIFICATION",
+    pending_verification: true,
+  }));
+  const session = new NovaSession({ tools: [], call }, () => {}, {
+    retainSubmission,
+    onTool,
+    onSubmissionPendingSent,
+  });
+  const send = vi.spyOn(
+    session as unknown as {
+      send(name: string, data: Record<string, unknown>): void;
+    },
+    "send",
+  );
+  const args = { quote_id: "49c5ede6-cd02-4a3a-99aa-31a1ff30019b" };
+  session.handle("toolUse", {
+    contentId: "approval-submit",
+    toolName: "submit_order",
+    toolUseId: "approval-submit",
+    content: JSON.stringify(args),
+  });
+  session.handle("contentEnd", {
+    contentId: "approval-submit",
+    stopReason: "TOOL_USE",
+  });
+  await session.drain();
+  expect(retainSubmission).toHaveBeenCalledExactlyOnceWith(args);
+  expect(call).not.toHaveBeenCalled();
+  expect(onTool).not.toHaveBeenCalled();
+  expect(onSubmissionPendingSent).toHaveBeenCalledOnce();
+  expect(
+    JSON.parse(
+      send.mock.calls.find(([name]) => name === "toolResult")![1]
+        .content as string,
+    ),
+  ).toEqual({ code: "PENDING_VERIFICATION", pending_verification: true });
+  session.close();
+});
+it("seals audio before returning a pending tool result, then finishes without a forced abort", async () => {
+  const session = new NovaSession({ tools: [], call: vi.fn() }, () => {}, {
+    retainSubmission: async () => ({ code: "PENDING_VERIFICATION" }),
+    onSubmissionPendingSent: () => session.finishSession(),
+  });
+  const send = vi.spyOn(
+    session as unknown as {
+      send(name: string, data: Record<string, unknown>): void;
+    },
+    "send",
+  );
+  const controller = (session as unknown as { controller: AbortController })
+    .controller;
+  session.finishInput();
+  expect(controller.signal.aborted).toBe(false);
+  expect(() => session.audio(Buffer.alloc(640))).toThrow("sealed");
+  session.handle("toolUse", {
+    contentId: "submit-after-seal",
+    toolName: "submit_order",
+    toolUseId: "submit-after-seal",
+    content: '{"quote_id":"49c5ede6-cd02-4a3a-99aa-31a1ff30019b"}',
+  });
+  session.handle("contentEnd", {
+    contentId: "submit-after-seal",
+    stopReason: "TOOL_USE",
+  });
+  await session.drain();
+  expect(send.mock.calls.map(([name]) => name)).toEqual([
+    "contentEnd",
+    "contentStart",
+    "toolResult",
+    "contentEnd",
+    "promptEnd",
+    "sessionEnd",
+  ]);
+  expect(controller.signal.aborted).toBe(false);
+  session.close();
+});
 it("observes provider block identity and partial boundaries without treating FINAL as a complete user turn", () => {
   const evidence: ProviderVoiceEvidence[] = [];
   const session = new NovaSession(

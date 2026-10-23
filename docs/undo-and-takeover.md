@@ -27,7 +27,7 @@ For pricing, receipt and API details, see [correction receipts and meal savings]
 3. For an unsubmitted draft, edit the relevant item or choose **Add an item**, then save. The operator can also send a typed **Staff message to the customer**.
 4. When a handoff is outstanding, choose **Mark staff review handled** after addressing it. An allergy request requires human review; the fictional ingredient fixtures are not an allergen-safety assurance.
 5. Choose **Release to SayGo**. The customer gets the current draft back with its modifications intact. Voice does **not** restart automatically: the customer must choose **Start live voice** again if live voice is configured and desired.
-6. Stop voice, choose **Review order**, check the quote, then select **Confirm order** on screen. Spoken approval remains disabled on the current Nova adapter. Releasing staff control alone never submits an order.
+6. For screen approval, stop voice, choose **Review order**, check the quote, then select **Confirm order**. With live voice, the customer can instead request a fresh readback and use the [spoken confirmation recording](voice-confirmation.md). Releasing staff control alone never submits an order.
 
 After another operator changes control, use the latest visible state. Identical retries preserve the original result; stale actions cannot change a later ownership period or a different customer.
 

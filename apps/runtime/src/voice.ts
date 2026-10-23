@@ -8,10 +8,7 @@ import { NovaSession } from "../../../packages/integrations/src/nova.js";
 import type { VoiceSessionOptions } from "../../../packages/integrations/src/nova.js";
 import { cookie } from "./auth.js";
 import { openCustomerMcp } from "./customer-mcp-log.js";
-import {
-  CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED,
-  VoiceConfirmationCoordinator,
-} from "./voice-confirmation.js";
+import { SealedVoiceConfirmationCoordinator } from "./sealed-voice-confirmation.js";
 const active = new Map<string, { fence: number; stop: () => Promise<void> }>();
 // A takeover can finish while a previously authorized upgrade is still waiting
 // for its state read. Remember the invalidated generation so it cannot register
@@ -85,6 +82,7 @@ export function attachVoice(
           let renewing: Promise<void> = Promise.resolve();
           let renewLease = true;
           let renewalPending = false;
+          let providerEndedNaturally = false;
           const cleanup = async (action: () => unknown | Promise<unknown>) => {
             try {
               await action();
@@ -110,13 +108,25 @@ export function attachVoice(
               );
             }
           };
-          const confirmation = new VoiceConfirmationCoordinator({
+          const confirmation = new SealedVoiceConfirmationCoordinator({
             scope,
             connectionId,
-            // Current provider cannot certify whole customer turns. No testing,
-            // model, browser or environment option may override this capability.
-            certifiedWholeUserTurns: CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED,
             send,
+            active: () => !ended,
+            onExpire: () => void stop(),
+            releaseLease: async () => {
+              renewLease = false;
+              clearInterval(guard);
+              await renewing;
+              if (ended) throw Error("Voice connection ended");
+              await voiceLease(scope.session_id, null, connectionId);
+            },
+            submit: async (args) => {
+              if (ended || !mcp) throw Error("Voice connection ended");
+              const result = await mcp.call("submit_order", args);
+              testing.onTool?.("submit_order", args, result);
+              return result;
+            },
           });
           const stop = () => {
             if (stopping) return stopping;
@@ -189,8 +199,10 @@ export function attachVoice(
               }
               bytes += Buffer.byteLength(data as Buffer);
               if (bytes > 80000) throw new Error("Audio rate limit");
-              if (binary) nova.audio(Buffer.from(data as Buffer));
-              else {
+              if (binary) {
+                const frame = Buffer.from(data as Buffer);
+                if (confirmation.acceptAudio(frame)) nova.audio(frame);
+              } else {
                 const msg = JSON.parse(data.toString());
                 if (msg.type === "stop") void stop();
                 else if (msg.type === "interrupt") {
@@ -208,6 +220,15 @@ export function attachVoice(
                     });
                 } else if (msg.type === "readback_played") {
                   void confirmation.playbackAck(msg).catch(() => void stop());
+                } else if (msg.type === "confirmation_capture_start") {
+                  if (!confirmation.captureStart(msg)) void stop();
+                } else if (msg.type === "confirmation_capture_end") {
+                  if (!confirmation.captureEnd(msg)) {
+                    void stop();
+                    return;
+                  }
+                  nova.finishInput();
+                  if (confirmation.shouldFinishSession()) nova.finishSession();
                 } else if (
                   msg.type === "text" &&
                   typeof msg.text === "string"
@@ -245,6 +266,25 @@ export function attachVoice(
               onProviderEvidence: (event) => {
                 if (!ended) confirmation.observeProvider(event);
                 testing.onProviderEvidence?.(event);
+                if (event.name === "completionEnd")
+                  void Promise.resolve()
+                    .then(async () => {
+                      await nova?.drain();
+                      if (!ended && confirmation.shouldFinishSession())
+                        nova?.finishSession();
+                    })
+                    .catch(() => void stop());
+              },
+              retainSubmission: async (args) =>
+                confirmation.retainSubmission(args),
+              onSubmissionPendingSent: () => {
+                confirmation.submissionPendingSent();
+                if (!ended && confirmation.shouldFinishSession())
+                  nova?.finishSession();
+              },
+              onStreamEnd: (natural, failure) => {
+                providerEndedNaturally = natural;
+                testing.onStreamEnd?.(natural, failure);
               },
               transformToolResult: async (name, args, result) => {
                 const authoritative = await confirmation.transformToolResult(
@@ -282,7 +322,11 @@ export function attachVoice(
                   void stopVoice(scope.session_id, scope.fence + 1);
               },
             });
-            void nova.start().then(stop, unavailable);
+            void nova.start().then(async () => {
+              await nova?.drain();
+              if (!ended) await confirmation.finish(providerEndedNaturally);
+              await stop();
+            }, unavailable);
           })();
           function unavailable() {
             if (ended) return;

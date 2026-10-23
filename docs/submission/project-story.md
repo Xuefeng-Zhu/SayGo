@@ -1,69 +1,49 @@
 # SayGo
 
-## One-line summary
+**Speak, see each change, and approve the exact order before it reaches the kitchen.**
 
-A drive-through ordering assistant that lets customers speak, see each change, and confirm the order before it reaches the kitchen.
+## Inspiration
 
-## Inspiration / Problem
+A drive-through employee is often taking an order while handling another task. One “actually…” can change quantities, drink sizes and modifiers at once. SayGo makes the current order visible, so a misunderstanding can be corrected before a kitchen ticket is created.
 
-Drive-through orders change during conversation: a customer removes a burger, resizes a drink or asks for no onions on one item. SayGo keeps those changes visible so the customer can correct a misunderstanding before approving the kitchen ticket.
+## What it does
 
-## What it does / Solution
+SayGo is a browser-based Alexa+ concept simulation for fictional Harbor Burger. Customers order and correct items by voice while the order board and MCP call log show the resulting state. The model can look up ingredients, compare prices, check meal savings and read draft status without changing the cart.
 
-At fictional Harbor Burger, customers add items, change quantities and modifiers, and watch the order board update.
+Review creates an exact, expiring quote. The customer hears the complete items and total, starts a fresh spoken-approval recording, says “Yes, place my order,” and finishes that recording. The server verifies the sealed audio and quote before recording approval and completing the actual MCP submission. Screen confirmation is also available. A review request, typed text or the model’s own words cannot approve an order.
 
-The screen shows the current cart and a server-generated quote. Customers stop voice before tapping **Confirm order**, and the accepted test order appears on the kitchen display. Spoken words alone cannot place an order; approval uses the screen.
+The successful October 23 take shows 16 successful Voice calls covering ten tool types, followed by one accepted $9.72 sandbox order and its matching kitchen ticket: one Classic Burger without onions and one medium lemonade without ice. The registered staff-help tool is intentionally omitted from this demo. The application has eleven MCP tools in total.
 
-Staff can take over without losing the draft. When the POS response is uncertain, SayGo checks the original delivery request before reporting acceptance.
+## How we built it
 
-## Why this matters
+Next.js, React and TypeScript provide customer, crew and kitchen screens. Browser PCM audio streams through an authenticated Node gateway to Amazon Bedrock’s Nova 2 Sonic. Credentials remain server-side.
 
-Customers and staff see the same item selections and modifiers. The prototype supports checking and correcting an order; it has not been deployed in a restaurant or measured for error reduction.
+Nova requests structured actions through the MCP TypeScript SDK. Zod schemas validate tool inputs and results. The ordering engine checks menu choices, prices in integer cents and cart versions. Amazon DynamoDB stores the canonical cart, reviewed quote, approval, order and delivery job. Transactions and stable delivery keys support one consistent sandbox receipt when delivery is retried.
 
-## How we built it / Architecture
+The demo uses remote DynamoDB in an isolated fictional namespace, which is removed after verification. Reviewers can reproduce the fixture route with DynamoDB Local and no AWS credentials. Free-form voice requires their own authorized AWS access. Polly Generative Matthew supplies the synthetic male customer speech and narration; the female restaurant replies were generated live by Nova Tiffany during the recording.
 
-Next.js, React, TypeScript and Tailwind CSS provide the customer and staff screens. Audio streams through the Node server to Amazon Bedrock's Nova 2 Sonic model; credentials stay server-side.
+## Challenges and learning
 
-The model reads the menu and edits the draft through Streamable HTTP MCP tools. Zod schemas validate tool requests. The ordering engine checks menu choices and calculates prices in integer cents. Version checks reject edits based on an outdated cart.
+Streaming speech, playback, tool calls and database writes finish at different times. We had to distinguish a model’s request from customer approval, wait for actual readback playback, bind fresh spoken consent to the exact quote, seal the capture and complete provider cleanup before submitting. Pending verification must never be presented as an accepted order.
 
-DynamoDB stores the draft, quote, approval, order and delivery job. A worker delivers the confirmed order to the local POS sandbox using a stable request key.
+Observability also matters: the MCP log exposes actual source, outcome, measured duration and request/result summaries. The selected take keeps it visible, including a proposed reset that the customer dismisses while preserving the draft.
 
-SayGo runs as an independent **Alexa+ concept simulation in a browser**. Native Alexa+ registration and Fire TV support remain outside this prototype.
+Dedicated TTS was more suitable for repeatable scripted customer lines than prompting a conversational model to narrate verbatim. We preserved failed synthesis/recording evidence and measured usage rather than treating a failed attempt as a pass. The successful take also preserves genuine partial or repeated restaurant replies.
 
-## Challenges
+## Verification
 
-Speech and cart writes finish asynchronously. A delayed startup failure could hide the controls for a newer voice session. Session ownership checks and cleanup now handle that race. The gateway also owns retry IDs rather than trusting model-generated ones.
+The selected take passed 24 flow assertions: no order before sealed spoken approval, exactly one voice approval/order/receipt, correct $9.72 totals, successful Voice coverage for ten selected tools, matching kitchen state and cleanup. Its source fingerprints were preserved across all 217 recorded files.
 
-In the recording, the cart showed large although the customer clip was scripted to ask for medium. Another spoken clarification restored medium before confirmation. That recovery is left visible; the acoustic cause is unresolved.
+The submission film is 179 seconds, 1920×1080 H.264/AAC with English captions. It contains a humorous problem animation, one continuous 134-second slice of the successful take, and animated Nova/MCP/DynamoDB data flows. Nineteen independent media checks and complete normal-speed, sound-enabled browser playback passed. Subjective voice naturalness has not received human acceptance.
 
-## Accomplishments
+## What’s next
 
-The recorded flow reaches one accepted **$9.72** sandbox order: a classic burger without onions and a medium lemonade without ice. Its 21 checks include screen consent and matching order/receipt state.
+Test human speech, background noise, intercom hardware and a broader range of menus. Commercial POS adapters and native Alexa+ integration remain future work. We have not deployed this prototype in a restaurant or measured real-world error reduction.
 
-An October 21 source snapshot passed 145 unit tests, lint, root/web TypeScript checks, a webpack web build and runtime/worker builds. Tests cover the concise-response prompt; its effect on spoken replies still needs a live run. See [verification scope](verification.md) for the source version.
+## AI and disclosure
 
-## What we learned
+Nova 2 Sonic handles live speech and tools; Nova 2 Lite was used separately for bounded menu/pricing evaluation. Polly creates prerecorded demo speech. Codex assisted implementation, debugging, tests, evidence review and video preparation; Remotion and Cirro produce the local film.
 
-A correct transcript alone does not prove a correct order. Tests also need to compare the cart, approval and POS receipt. We also found conflicting prompt instructions: a request for brief replies competed with a demand to repeat totals after every edit. The redundant instruction was removed; its effect still needs a live check.
+SayGo is an independent Alexa+ concept simulator, not a native Alexa+ deployment. The restaurant and POS are fictional/sandboxed. No physical microphone, real restaurant order or payment was used.
 
-## What's next
-
-Verify the shorter replies with fresh Nova audio. Then test with human speech, background noise and intercom hardware. Broader menu testing, a commercial POS adapter and a native Alexa+ integration are later steps.
-
-## How we used AI and Codex
-
-Nova 2 Sonic handles speech and tools; Nova 2 Lite was used for separate menu/pricing evaluations. Polly Generative Matthew supplies prerecorded customer speech and narration. The demo's Nova Tiffany replies were generated live.
-
-Codex assisted source inspection, lifecycle fixes, tests and demo preparation. Tests and saved source hashes tie each result to the code that produced it.
-
-## Built with
-
-Amazon Bedrock/Nova; DynamoDB/Local; Polly; AWS SDK/CLI; MCP TypeScript SDK; Zod; Node.js/Express/WebSocket; TypeScript; Next.js/React/Tailwind CSS; Vitest; Playwright; Codex.
-
-## Demo disclosure
-
-Recorded October 21, 2026.
-
-The **1:46.672** English-captioned video uses synthetic customer speech, fresh Nova replies, local DynamoDB and mock POS. No physical microphone, real order or payment is involved.
-
-The recorded working tree is based on **7cb44f4**, with local changes. It predates the concise-response prompt. [Demo details](demo.md).
+[Watch the public 2:59 demo](https://www.youtube.com/watch?v=vc-iBxxVerc).

@@ -1,35 +1,31 @@
 # SayGo submission draft
 
-Preparation snapshot: October 21, 2026, with documentation updated for the published source. This is the submission packet for Build, Ship, Shape: Amazon Developer Hackathon.
+Updated October 23, 2026 for Build, Ship, Shape: Amazon Developer Hackathon. This packet is prepared locally; it does not establish final Devpost submission.
 
-SayGo is a drive-through ordering assistant. Customers can see and correct the draft, review an exact quote, and approve the order before it reaches the kitchen. Harbor Burger is fictional; delivery uses a local POS sandbox.
+SayGo lets a customer speak an order, see and correct each change, hear the exact quote and approve it before it reaches the kitchen. Harbor Burger and its POS are fictional.
 
-## Submission materials
+| Material | File |
+| --- | --- |
+| Project description | [Project story](docs/submission/project-story.md) |
+| Technical and saved personal answers | [Devpost form answers](docs/submission/devpost-form-answers.md) |
+| Setup without AWS credentials | [Reviewer instructions](docs/submission/reviewer-instructions.md) |
+| Current film and provenance | [Recorded demo](docs/submission/demo.md) |
+| Checks and source versions | [Verification scope](docs/submission/verification.md) |
+| Integration feedback | [Friction log](docs/submission/friction-log.md) |
+| Remaining submission steps | [Checklist](docs/submission/submission-checklist.md) |
 
-| Material                                             | File                                                              |
-| ---------------------------------------------------- | ----------------------------------------------------------------- |
-| Project description                                  | [Project story](docs/submission/project-story.md)                 |
-| Technical form answers and unanswered entrant fields | [Devpost form answers](docs/submission/devpost-form-answers.md)   |
-| Setup without AWS credentials                        | [Reviewer instructions](docs/submission/reviewer-instructions.md) |
-| Video details and screenshots                        | [Recorded demo](docs/submission/demo.md)                          |
-| Test results and source versions                     | [Verification scope](docs/submission/verification.md)             |
-| Integration feedback                                 | [Friction log](docs/submission/friction-log.md)                   |
-| Remaining submission steps                           | [Checklist](docs/submission/submission-checklist.md)              |
+## Current demo
 
-## Demo
+`SayGo-submission-take08.mp4` is **179 seconds**, 1920×1080 H.264/AAC with English captions. It includes a problem animation, a continuous 134-second slice of successful take 08, and animated Nova/MCP/DynamoDB data flows. Prerecorded Polly Matthew customer speech and narration accompany fresh Nova 2 Sonic Tiffany restaurant replies.
 
-The selected video is `SayGo-live-AI-male-demo.mp4`: **106.672 seconds**, 1920×1080, with English captions. It shows prerecorded Polly Generative Matthew customer speech and narration, Nova 2 Sonic Tiffany replies generated during the recording, DynamoDB Local, and one screen-approved **$9.72** sandbox order. An additional spoken clarification corrects a drink-size mismatch.
+The MCP log stays visible through ordering, correction, information reads, a dismissed reset proposal, exact readback and sealed spoken approval. Sixteen successful Voice calls cover ten of eleven registered tools; staff help is intentionally skipped. One accepted **$9.72** order and its matching kitchen ticket contain one Classic Burger without onions and one medium lemonade without ice.
 
-The recording is based on `7cb44f4` with local changes. It predates the concise-response prompt. It uses no physical microphone and places no real restaurant order or payment.
+The take uses remote DynamoDB, an isolated namespace and SandboxPos. The recorded source is `2b6dc36` plus fingerprinted local changes. No physical microphone, real restaurant order, payment or native Alexa+ deployment is claimed.
 
-**Public YouTube or Vimeo URL: pending in the saved preparation record.** The private Library copy does not provide the required public link. No hosted application URL has been verified; reviewers can use the local setup.
+**Public YouTube video:** [SayGo — voice ordering and technical demo](https://www.youtube.com/watch?v=vc-iBxxVerc). No hosted application URL has been verified; reviewers can use the credential-free local fixture route.
 
-The older 2:36 fixture video is documented separately in [historical demo notes](docs/demo-and-submission.md).
+## Repository and publication
 
-## Repository and license
+The [repository](https://github.com/Xuefeng-Zhu/SayGo) was verified public with an MIT license on October 23 at `2b6dc36`. Current source and packet changes still require publication. Original source and documentation use [MIT](LICENSE); third-party materials, generated media, audio and model assets retain their terms in [notices](THIRD_PARTY_NOTICES.md).
 
-The October 21 [publication record](docs/submission/verification-summary.json) verified the [public repository](https://github.com/Xuefeng-Zhu/SayGo) and MIT license. Original SayGo source and documentation are covered by [LICENSE](LICENSE), copyright 2026 Xuefeng Zhu. Third-party packages, generated media, audio and model assets retain their own terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
-
-## Before submission
-
-Add the public video URL, complete the entrant declarations and future-use feedback, review the proposed track choices, and check the final preview. Reconcile the published source with the setup instructions and dated evidence. The [checklist](docs/submission/submission-checklist.md) records the remaining items; it does not establish that an entry has been submitted.
+The live form already contains the entrant's personal choices. Preserve those choices while replacing stale technical claims. Publish the selected source, verify the public video and final preview and obtain action-time consent before final submission. See the [checklist](docs/submission/submission-checklist.md).

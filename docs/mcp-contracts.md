@@ -38,7 +38,7 @@ Cart commands are `add`, `update`, `remove` and `meal`, with at most 20 commands
 
 The ordering flow is menu/cart discovery → cart changes → exact review → customer approval → order status check. `POST /api/lane/confirm` records customer approval and then calls `submit_order` through MCP. The approval route uses the authenticated customer cookie and checks idle voice, quote expiry and current state; an agent cannot approve its own quote.
 
-The current Nova adapter requires screen confirmation. Stop voice, review the current quote and select **Confirm order**. A spoken or typed affirmation cannot grant approval through that adapter. See [voice confirmation requirements](voice-confirmation.md).
+The [sealed spoken confirmation flow](voice.md#spoken-order-approval) offers a second approval path. The server checks the completed recording against the readback and current quote. After the provider stream ends naturally, it records consent, releases the connection's voice lease and executes the retained `submit_order` request through MCP. The input remains `quote_id`; transcripts and approval flags cannot grant consent. `PENDING_VERIFICATION` means the request is waiting for these checks and has not called MCP or submitted an order.
 
 `POST /api/lane/reset` consumes a customer-approved reset token. `POST /api/lane/meal-savings/apply` and `POST /api/lane/undo` accept displayed proposal/receipt identities and current versions. These same-origin customer routes are implemented in [runtime routes](../apps/runtime/src/app.ts) and are separate from the MCP catalog. See [draft improvements](draft-improvements.md) for their inputs and retry behavior. Browser actions retrieve the full current `View` separately from the compact MCP response.
 

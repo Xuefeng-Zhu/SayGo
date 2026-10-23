@@ -869,9 +869,26 @@ export async function armVoiceConfirmation(
   });
 }
 
+/** Store server-verified audio consent without submitting. The retained model
+ * request must still cross the actual MCP boundary after this voice lease ends. */
+export async function recordVoiceApproval(
+  scope: Scope,
+  input: VoiceOrderEvidence,
+): Promise<View> {
+  return applyVoiceApproval(scope, input, false);
+}
+
 export async function confirmVoiceOrder(
   scope: Scope,
   input: VoiceOrderEvidence,
+): Promise<View> {
+  return applyVoiceApproval(scope, input, true);
+}
+
+async function applyVoiceApproval(
+  scope: Scope,
+  input: VoiceOrderEvidence,
+  submit: boolean,
 ): Promise<View> {
   const a = voiceOrderEvidenceSchema.parse(input),
     proofHash = draftHash(a);
@@ -937,12 +954,26 @@ export async function confirmVoiceOrder(
       );
     }
     const prior = await c.tx.get("approvals", quote.id);
-    assert(
-      !prior,
-      "CONSENT_ALREADY_RECORDED",
-      "This quote already has customer consent. Check the current order.",
-      409,
-    );
+    if (prior) {
+      assert(
+        prior.source === "voice" &&
+          prior.session_id === c.s.id &&
+          !prior.consumed_at &&
+          prior.voice_evidence?.proof_hash === proofHash &&
+          prior.voice_evidence.connection_id === a.connection_id &&
+          prior.voice_evidence.readback_id === a.readback_id &&
+          prior.voice_evidence.utterance_id === a.utterance_id,
+        "CONSENT_ALREADY_RECORDED",
+        "This quote already has different customer consent. Check the current order.",
+        409,
+      );
+      return submit
+        ? commitApprovedQuote(c, quote)
+        : view(
+            c,
+            "Voice approval is recorded; the order has not been submitted.",
+          );
+    }
     c.tx.put("approvals", {
       quote_id: quote.id,
       session_id: c.s.id,
@@ -961,7 +992,12 @@ export async function confirmVoiceOrder(
       readback_id: a.readback_id,
       utterance_id: a.utterance_id,
     });
-    return commitApprovedQuote(c, quote);
+    return submit
+      ? commitApprovedQuote(c, quote)
+      : view(
+          c,
+          "Voice approval is recorded; the order has not been submitted.",
+        );
   });
 }
 
@@ -982,7 +1018,21 @@ export async function invalidateVoiceConfirmation(
       "Only the voice gateway can invalidate its readback.",
       403,
     );
-    if (c.s.voice_confirmation?.connection_id !== connectionId) return;
+    const pending = c.s.voice_confirmation;
+    const quoteId =
+      pending?.connection_id === connectionId
+        ? pending.quote_id
+        : c.s.active_quote_id;
+    if (quoteId) {
+      const approval = await c.tx.get("approvals", quoteId);
+      if (
+        approval?.source === "voice" &&
+        !approval.consumed_at &&
+        approval.voice_evidence?.connection_id === connectionId
+      )
+        c.tx.delete("approvals", quoteId);
+    }
+    if (pending?.connection_id !== connectionId) return;
     c.s.voice_confirmation = null;
     await c.tx.update("interactions", c.s.id, { voice_confirmation: null });
   });

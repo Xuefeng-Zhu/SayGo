@@ -1,38 +1,39 @@
-# Voice confirmation
+# Confirm an order by voice
 
-**Use screen confirmation with the current Nova adapter.** A finalized transcript fragment may be followed by a correction or negation. SayGo keeps spoken approval disabled until the adapter can provide complete final customer speech.
+Live voice supports a separate spoken-approval recording after the full order readback. SayGo checks the completed recording against the current quote before submitting to the local POS sandbox. Payment stays due at the window.
 
-To place a fictional order, stop live voice, choose **Review order**, check the current quote and select **Confirm order**. Typed messages and spoken affirmations do not approve orders. Draft reset requires its separate **Confirm reset** action. Orders go to the local POS sandbox; payment stays due at the window.
+## Place an order
 
-## Guarded flow for a future adapter
+1. Finish your changes, then say **“Review my order.”**
+2. Listen to the full order and total. The board shows **Listen to your order** while the readback plays. Interrupt or make a correction if anything is wrong.
+3. When **Record spoken confirmation** becomes available, select it and say **“Yes, place my order.”**
+4. After the complete sentence, select **Finish spoken confirmation**. The buttons start and finish recording; the spoken words provide approval.
+5. Wait for the result. **Sending your order…** means submission is pending. **Your order is in.** means the sandbox accepted it. If the result is uncertain, check the current order before trying again.
 
-The server and UI contain a voice-confirmation core for an adapter that can supply complete speech evidence. Controlled tests exercise this flow:
+A simple “okay”, typed message, partial transcript or earlier recording cannot confirm an order. A correction, negative response, expired window, changed quote, staff takeover, new customer or lost connection invalidates spoken approval. Ask for a fresh review after resolving the issue.
 
-1. The customer asks to review the order.
-2. SayGo reads the exact server quote, including every item, modifier and the total. Corrections or interruptions invalidate that readback.
-3. After the full readback finishes, a short confirmation window opens. The customer must give an explicit affirmative such as **“Yes, place the order.”** A simple “okay”, typed message, partial transcript or earlier recording is insufficient.
-4. The server validates complete final speech against the current quote and session before submission. **Sending your order…** means submission is pending. **Your order is in.** means the sandbox accepted it. An uncertain result requires checking the current order before trying again.
+For screen confirmation, stop live voice, review the current order and select **Confirm order**. Draft reset still requires its separate **Confirm reset** action.
 
-Negative responses, changed items, Undo, staff takeover, a new customer, lost connections or expiry require a new readback and confirmation window. Returning control from staff never restarts voice or submits the draft.
+## How approval is checked
 
-This flow remains unavailable through the current Nova adapter. Its controlled positive tests use complete-turn evidence supplied by fixtures.
+The confirmation panel shows the server's exact readback and total. The server binds it to the quote, cart version, customer session, connection and ownership fence. The browser acknowledges playback only after the matching server completion and the entire audio queue have finished. That acknowledgment enables recording; it does not approve the order.
 
-## How the core checks approval
+The gateway accepts fresh audio only within the confirmation window. After the customer finishes recording, it closes audio input and retains any model `submit_order` request. The model receives `PENDING_VERIFICATION`, which means no order has been submitted.
 
-The confirmation panel shows the server's exact readback and total. The server binds it to the quote, cart version, customer session, connection and ownership fence. The browser acknowledges playback only after the matching server completion and the entire audio queue have finished. That acknowledgment is separate from customer consent.
+The gateway then closes the provider session and waits for natural stream termination. It combines all final customer transcript fragments from that recording and requires a complete explicit affirmative phrase. Extra, negative, provisional or missing content prevents approval. Successful verification records consent, releases the voice lease and sends the retained request through MCP. The MCP input remains only `quote_id`; it cannot supply consent itself.
 
-The server then requires complete final speech from the current confirmation window and rechecks quote/session guards before submission. Captions, client-supplied flags and model prose cannot supply consent. When evidence is incomplete, the voice path stays closed and screen confirmation remains available.
+If verification fails, stop voice and use a fresh screen review. See [voice lifecycle](voice.md#spoken-order-approval) for the surrounding stream behavior.
 
-## Why Nova approval remains disabled
+## Why transcript fragments are insufficient
 
-The [Nova output-event documentation](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-output-events.html) describes transcript segments. Its [chat-history example](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-chat-history.html) pairs USER `generationStage: FINAL` with `stopReason: PARTIAL_TURN`. An assistant response ending or a silence timer cannot establish that all customer fragments have arrived.
+The earlier fragment-based approach remains disabled by `CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED=false`. Nova can label an individual customer transcript segment `FINAL` with `PARTIAL_TURN`; that segment need not contain the complete customer utterance. An assistant response ending or a silence timer cannot establish that the customer has finished.
 
-An October 22, 2026 synthetic provider probe said: “Yes, place the order. No, do not place the order.” The affirmative and negative arrived as separate FINAL/PARTIAL_TURN fragments about two seconds apart. Committing after the first would have ignored the correction. No order was submitted.
+An October 22, 2026 synthetic provider probe said: “Yes, place the order. No, do not place the order.” The affirmative and negative arrived as separate FINAL/PARTIAL_TURN fragments about two seconds apart. No order was submitted. The current recording flow waits for the whole provider stream to end before checking all fragments from the recording.
 
-`CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED` is a literal `false` in the runtime. Client JSON, tool arguments, environment variables, captions, an assistant response ending and silence timers cannot enable it. Enabling spoken approval requires a verified complete-transcript boundary and fresh-audio onset contract, followed by provider readback, interruption, correction and duplicate-submission tests.
+See the provider [output-event documentation](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-output-events.html) and [chat-history example](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-chat-history.html).
 
 ## Verification
 
-`tests/unit/readback-playback.test.ts` covers playback receipts, stale identities, expiry and invalidation. `tests/e2e/voice-confirmation.spec.ts` uses software audio, intercepted WebSockets and controlled server state to check the panel and playback acknowledgment. Browser fixtures cannot establish recognition quality or server consent enforcement; domain/runtime tests cover those guards under controlled evidence.
+Controlled playback, domain, runtime and browser tests exercise readback identity, fresh capture, expiry, interruption, transcript fragments, consent and submission guards. Browser fixtures use software audio, intercepted WebSockets and controlled server state; they cannot establish recognition quality or real-provider behavior.
 
-A real-provider trial must retain its own source identity and results. Physical microphone, speaker and noisy-car testing remain separate. See [evaluation](evaluation.md) for dated results.
+The October 22 probe tested the unsafe fragment case, before the separate recording flow. Earlier touch-confirmation demos also predate this implementation. A current provider trial must retain its own source identity and results. Physical microphone, speaker and noisy-car testing remain separate. See [evaluation](evaluation.md) for dated results.

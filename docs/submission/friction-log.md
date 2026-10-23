@@ -1,6 +1,6 @@
 # SayGo — integration friction log
 
-These entries record implementation and setup issues. Impact labels describe their effect on SayGo development. Each linked receipt identifies its tested source; older results do not verify later prompt changes.
+These entries record implementation and setup issues. Impact labels describe their effect on SayGo development. Each linked receipt identifies its tested source; older results remain scoped to their recorded source. The selected October 23 take now covers ten Voice tool types and sealed spoken approval; see [current verification](verification.md).
 
 ## MCP structured validation recovery
 
@@ -35,4 +35,25 @@ These entries record implementation and setup issues. Impact labels describe the
 - **Actionable suggestion:** Make required browser-build versions and fallback build diagnostics prominent in setup output. Preserve explicit environment failures separately from application test failures.
 - **Evidence:** [Historical setup observations](../sdk-friction.md#historical-setup-observations--october-10-2026), [current setup](../local-development.md), [selected-source check scope](verification.md).
 
-The entrant still needs to answer required future-use feedback field **28307**. Before using this log for optional field 28301, verify that its [public GitHub page](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md) is accessible. Any judging bonus is discretionary.
+The saved Devpost answer for required future-use field **28307** is **Yes**; preserve the entrant's opinion while updating stale technical boundaries. Before using this log for optional field 28301, verify that its [public GitHub page](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md) is accessible. Any judging bonus is discretionary.
+
+## Sealed spoken approval and current streaming behavior
+
+- **Tools:** Nova 2 Sonic, MCP SDK, browser PCM capture and application consent coordinator; current October 23 take 08.
+- **Task:** Read the exact quote, record fresh explicit customer approval and submit through MCP only after the recording is sealed.
+- **Observed:** Provider transcript fragments, audio playback, model tool requests and stream completion have separate boundaries. Treating a single partial transcript or model submission request as consent was insufficient. This is an application integration issue, not an isolated vendor defect.
+- **Workaround:** Bind capture to the quote/cart/connection, acknowledge readback playback, seal customer audio, retain pending submission and verify all fragments through natural provider completion before approval/MCP submission.
+- **Result:** The selected take passed 24 assertions with one voice-approved $9.72 order, one receipt and matching kitchen. It preserves partial/repeated model replies; broader naturalness and reliability remain unverified.
+- **Suggestion:** Provide a complete reference lifecycle for corrections, interrupted approval, pending tool execution and final consent diagnostics.
+- **Evidence:** [Spoken approval](../voice.md#spoken-order-approval), [consent design](../voice-confirmation.md), [current take](demo.md), [portable receipt](verification-summary.json).
+
+## Repeatable customer speech and local media assembly — October 23 review
+
+Polly Generative Matthew produced consistent synthetic male customer and narration clips. Dedicated TTS was preferable to asking a conversational model for verbatim narration. The installed CLI streaming command required explicit flags; a JSON-only attempt failed locally before any service request. Remotion supplied motion visuals; finite PCM assembly avoided local inline-WAV/unbounded-filter failures. Failed evidence is retained, without attributing these local workflow errors to a vendor defect.
+
+## Next.js security gate — October 23, 2026
+
+- **Version / task:** The selected film used Next.js **16.4.0**. A later webpack publication build compiled and generated routes, then stopped with `SecurityFatalError` and an upgrade recommendation.
+- **Verified advisories:** [GHSA-673q-mjm6-r5xr](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr) and [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw). The documented patched release for the affected range is **16.4.1**.
+- **Remedy:** Narrowly update the declared Next.js version and lockfile to 16.4.1, then rerun the build and browser journeys. Do not rewrite the film's original dependency fingerprints or claim the recorded take used the patch.
+- **Evidence / boundary:** [Current verification](verification.md) records the original failed attempt separately from post-patch results. No provider retake or native Alexa+ behavior is involved.

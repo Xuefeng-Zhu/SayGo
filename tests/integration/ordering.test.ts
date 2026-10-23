@@ -587,6 +587,12 @@ describe("DynamoDB, real MCP and durable ordering", () => {
         for (const property of Object.values(tool.inputSchema.properties ?? {}))
           expect(property).toHaveProperty("description");
       }
+      const reviewDescription = m.tools.find(
+        (t) => t.name === "prepare_order_review",
+      )!.description;
+      expect(reviewDescription).toContain("server-verified spoken recording");
+      expect(reviewDescription).toContain("explicit screen confirmation");
+      expect(reviewDescription).toContain("does not approve or submit");
       const inputSchema = m.tools.find(
         (t) => t.name === "apply_cart_changes",
       )!.inputSchema;

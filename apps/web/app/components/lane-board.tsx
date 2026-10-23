@@ -152,9 +152,7 @@ export function LaneBoard() {
           fence: view.session.fence,
           cartVersion: view.cart_version,
           enabled:
-            view.session.owner === "ai" &&
-            !view.session.needs_staff_review &&
-            !view.order,
+            view.session.owner === "ai" && !view.session.needs_staff_review,
         }
       : undefined,
   );
@@ -188,18 +186,9 @@ export function LaneBoard() {
     };
   }, [refresh]);
   useEffect(() => {
-    if (
-      view?.session.owner === "staff" ||
-      view?.session.needs_staff_review ||
-      view?.order
-    )
+    if (view?.session.owner === "staff" || view?.session.needs_staff_review)
       voice.stop();
-  }, [
-    view?.session.owner,
-    view?.session.needs_staff_review,
-    view?.order?.id,
-    voice.stop,
-  ]);
+  }, [view?.session.owner, view?.session.needs_staff_review, voice.stop]);
   const act = async (path: string, body: unknown) => {
     if (busyRef.current) return null;
     busyRef.current = true;
@@ -525,7 +514,13 @@ export function LaneBoard() {
                           : summary}
                 </p>
                 {voiceConfirmation && (
-                  <VoiceConfirmationPanel confirmation={voiceConfirmation} />
+                  <VoiceConfirmationPanel
+                    confirmation={voiceConfirmation}
+                    phase={voice.spokenConfirmation}
+                    onRecord={voice.beginSpokenConfirmation}
+                    onFinish={voice.finishSpokenConfirmation}
+                    onChange={voice.interrupt}
+                  />
                 )}
                 {view.quote && !view.order ? (
                   <>
@@ -638,21 +633,25 @@ export function LaneBoard() {
                     }
                   />
                 )}
-              {!view.order &&
+              {(!view.order || config?.voice || voice.active) &&
                 view.session.owner === "ai" &&
                 !view.session.needs_staff_review && (
                   <section className="fixture-panel">
                     <h3>
-                      {voice.active
-                        ? "Live Nova speech"
-                        : "No-key fixture mode"}
+                      {view.order
+                        ? "Order follow-up by voice"
+                        : voice.active
+                          ? "Live Nova speech"
+                          : "No-key fixture mode"}
                     </h3>
                     <p className="small">
-                      {voice.active
-                        ? "Speak naturally. You can interrupt a response."
-                        : "Predefined phrases, real MCP calls and database changes."}
+                      {view.order
+                        ? "Ask about your order’s status or request staff help. Changes to a submitted order need staff."
+                        : voice.active
+                          ? "Speak naturally. You can interrupt a response."
+                          : "Predefined phrases, real MCP calls and database changes."}
                     </p>
-                    {config?.demo && !voice.active && (
+                    {config?.demo && !voice.active && !view.order && (
                       <>
                         <div className="fixture-buttons">
                           <button
@@ -719,27 +718,38 @@ export function LaneBoard() {
                       {voice.caption && (
                         <p className="caption">{voice.caption}</p>
                       )}
-                      <form
-                        className="text-fallback"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (voice.active) voice.text(text);
-                          else void act("/lane/fixture", { text });
-                          setText("");
-                        }}
-                      >
-                        <label>
-                          {voice.active
-                            ? "Type to Nova"
-                            : "Type a displayed example phrase"}
-                          <input
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            maxLength={500}
-                          />
-                        </label>
-                        <button disabled={locked || !text.trim()}>Send</button>
-                      </form>
+                      {(!view.order || voice.active) && (
+                        <form
+                          className="text-fallback"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (voice.active) voice.text(text);
+                            else void act("/lane/fixture", { text });
+                            setText("");
+                          }}
+                        >
+                          <label>
+                            {voice.active
+                              ? "Type to Nova"
+                              : "Type a displayed example phrase"}
+                            <input
+                              value={text}
+                              onChange={(e) => setText(e.target.value)}
+                              maxLength={500}
+                            />
+                          </label>
+                          <button
+                            disabled={
+                              busy ||
+                              voice.pending ||
+                              (!voice.active && locked) ||
+                              !text.trim()
+                            }
+                          >
+                            Send
+                          </button>
+                        </form>
+                      )}
                       {voice.active && (
                         <p className="small">
                           Typed messages do not confirm an order. Use your voice

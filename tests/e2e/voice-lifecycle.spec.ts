@@ -180,8 +180,11 @@ async function depart(page: Page) {
   ).toBeVisible();
 }
 test.afterEach(async ({ page }) => {
-  if (!page.isClosed())
+  if (!page.isClosed()) {
+    // Finish intercepted config polling before the page/context is disposed.
+    await page.unrouteAll({ behavior: "wait" });
     await page.evaluate(() => window.saygoLifecycle?.close());
+  }
 });
 
 test("takeover and release between polls cancel pending capture; resume requires a fresh click", async ({

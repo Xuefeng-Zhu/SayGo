@@ -262,6 +262,8 @@ describe("read-only menu price comparisons", () => {
     for (const input of [
       { options: [] },
       { options: [option, option] },
+      { options: [{ ...option, label: "medium lemonade" }] },
+      { options: [{ ...option, label: "a".repeat(41) }] },
       {
         options: Array.from({ length: 9 }, (_, i) => ({
           ...option,
@@ -275,6 +277,11 @@ describe("read-only menu price comparisons", () => {
       },
     ])
       expect(menuPriceInputSchema.safeParse(input).success).toBe(false);
+    expect(
+      menuPriceInputSchema.safeParse({
+        options: [{ ...option, label: "medium_lemonade-2" }],
+      }).success,
+    ).toBe(true);
     expect(() =>
       price([
         {

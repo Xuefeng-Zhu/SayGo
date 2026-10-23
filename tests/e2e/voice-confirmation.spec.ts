@@ -27,6 +27,7 @@ declare global {
 async function prepare(page: Page) {
   const peers: WebSocketRoute[] = [];
   const outgoing: Record<string, unknown>[] = [];
+  const audioFrames: number[] = [];
   const submitRequests: string[] = [];
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -99,6 +100,7 @@ async function prepare(page: Page) {
     peers.push(socket);
     socket.onMessage((message) => {
       if (typeof message === "string") outgoing.push(JSON.parse(message));
+      else audioFrames.push(message.byteLength);
     });
     send({ type: "ready" });
   });
@@ -138,6 +140,7 @@ async function prepare(page: Page) {
     send,
     peers,
     outgoing,
+    audioFrames,
     submitRequests,
     errors,
     confirmation,
@@ -248,12 +251,270 @@ test("playback receipt waits for full readback; server confirmation state never 
   await expect(
     page.getByRole("heading", { name: "Sending your order…", exact: true }),
   ).toBeVisible();
-  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+  await expect.poll(() => tracks(page)).toEqual(["live"]);
+  await expect(stop(page)).toBeVisible();
   qa.set({ ...qa.get(), order: { ...qa.get().order!, status: "accepted" } });
   await expect(
     page.getByRole("heading", { name: "Your order is in.", exact: true }),
   ).toBeVisible();
   expect(qa.submitRequests).toEqual([]);
+  expect(qa.errors).toEqual([]);
+  await stop(page).click();
+  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+});
+
+test("spoken confirmation records only after its server acknowledgement and seals PCM before verification without clicking Confirm", async ({
+  page,
+}) => {
+  const qa = await prepare(page);
+  await start(page).click();
+  await listening(page);
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(0);
+  const readback = qa.confirmation();
+  qa.set({ ...qa.get(), voice_confirmation: readback });
+  qa.send({ type: "confirmation_readback", ...readback, generation: 0 });
+  await expect(
+    page.getByText("Listening · speak to change your order during readback", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const readingCount = qa.audioFrames.length;
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(readingCount);
+  qa.send({ type: "audio", generation: 0, audio });
+  qa.send(complete());
+  await expect.poll(() => qa.readbacks().length).toBe(1);
+  const armed = {
+    ...readback,
+    status: "awaiting_confirmation" as const,
+    ready_at: new Date().toISOString(),
+  };
+  qa.set({ ...qa.get(), voice_confirmation: armed });
+  qa.send({ type: "confirmation_ready", ...armed, generation: 0 });
+  const record = page.getByRole("button", {
+    name: "Record spoken confirmation",
+    exact: true,
+  });
+  await expect(record).toBeEnabled();
+  await page.waitForTimeout(100);
+  const pausedCount = qa.audioFrames.length;
+  await page.waitForTimeout(120);
+  expect(qa.audioFrames).toHaveLength(pausedCount);
+  await record.click();
+  await expect
+    .poll(
+      () =>
+        qa.outgoing.filter((m) => m.type === "confirmation_capture_start")
+          .length,
+    )
+    .toBe(1);
+  await page.waitForTimeout(120);
+  expect(qa.audioFrames).toHaveLength(pausedCount);
+  expect(
+    qa.outgoing.find((m) => m.type === "confirmation_capture_start"),
+  ).toEqual({
+    type: "confirmation_capture_start",
+    readback_id: first,
+    readback_hash: hash,
+    generation: 0,
+  });
+  const captureId = "20000000-0000-4000-8000-000000000071";
+  qa.send({
+    type: "confirmation_capture_started",
+    readback_id: first,
+    readback_hash: hash,
+    generation: 0,
+    capture_id: captureId,
+  });
+  const finish = page.getByRole("button", {
+    name: "Finish spoken confirmation",
+    exact: true,
+  });
+  await expect(finish).toBeEnabled();
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(pausedCount);
+  await finish.click();
+  await expect
+    .poll(
+      () =>
+        qa.outgoing.filter((m) => m.type === "confirmation_capture_end").length,
+    )
+    .toBe(1);
+  expect(
+    qa.outgoing.find((m) => m.type === "confirmation_capture_end"),
+  ).toEqual({
+    type: "confirmation_capture_end",
+    capture_id: captureId,
+  });
+  const sealedCount = qa.audioFrames.length;
+  qa.send({ type: "confirmation_verifying", capture_id: captureId });
+  await page.waitForTimeout(150);
+  expect(qa.audioFrames).toHaveLength(sealedCount);
+  await expect(
+    page.getByRole("heading", { name: "Checking your spoken confirmation" }),
+  ).toBeVisible();
+  expect(qa.submitRequests).toEqual([]);
+  expect(qa.get().order).toBeNull();
+  await expect.poll(() => tracks(page)).toEqual(["live"]);
+  expect(qa.errors).toEqual([]);
+  qa.send({ type: "confirmation_invalidated" });
+  await expect(
+    page.getByText(
+      "Confirmation result was not verified. Check the order status before trying again.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+  expect(qa.submitRequests).toEqual([]);
+});
+
+test("an interrupted or expired readback keeps ordinary speech flowing and cannot rearm confirmation", async ({
+  page,
+}) => {
+  const qa = await prepare(page);
+  await start(page).click();
+  await listening(page);
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(0);
+  const readback = qa.confirmation();
+  qa.set({ ...qa.get(), voice_confirmation: readback });
+  qa.send({ type: "confirmation_readback", ...readback, generation: 0 });
+  const readingCount = qa.audioFrames.length;
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(readingCount);
+  qa.send({
+    type: "caption",
+    role: "USER",
+    final: true,
+    text: "Keep ordering.",
+  });
+  qa.set({ ...qa.get(), voice_confirmation: null });
+  qa.send({ type: "confirmation_invalidated" });
+  await expect(
+    page.getByText(
+      "Spoken confirmation cancelled. Continue ordering; stop and restart voice to confirm by voice, or confirm on screen.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const continuedCount = qa.audioFrames.length;
+  await expect
+    .poll(() => qa.audioFrames.length)
+    .toBeGreaterThan(continuedCount);
+  qa.send(complete());
+  qa.send({
+    type: "confirmation_ready",
+    ...qa.confirmation(first, "awaiting_confirmation"),
+    generation: 0,
+  });
+  expect(qa.readbacks()).toEqual([]);
+  await expect(
+    page.getByRole("button", {
+      name: "Record spoken confirmation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect.poll(() => tracks(page)).toEqual(["live"]);
+  await stop(page).click();
+
+  await start(page).click();
+  await listening(page);
+  const next = qa.confirmation(second);
+  qa.set({ ...qa.get(), voice_confirmation: next });
+  qa.send({ type: "confirmation_readback", ...next, generation: 0 });
+  qa.send({ type: "audio", generation: 0, audio });
+  qa.send(complete(second));
+  await expect.poll(() => qa.readbacks().length).toBe(1);
+  const armed = {
+    ...next,
+    status: "awaiting_confirmation" as const,
+    ready_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 500).toISOString(),
+  };
+  qa.set({ ...qa.get(), voice_confirmation: armed });
+  qa.send({ type: "confirmation_ready", ...armed, generation: 0 });
+  await expect(
+    page.getByText(
+      "Spoken confirmation expired. Continue ordering; stop and restart voice to confirm by voice, or confirm on screen.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const expiredCount = qa.audioFrames.length;
+  await expect.poll(() => qa.audioFrames.length).toBeGreaterThan(expiredCount);
+  qa.send({ type: "confirmation_ready", ...armed, generation: 0 });
+  await expect(
+    page.getByRole("button", {
+      name: "Record spoken confirmation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect.poll(() => tracks(page)).toEqual(["ended", "live"]);
+  expect(qa.submitRequests).toEqual([]);
+  expect(qa.get().order).toBeNull();
+  expect(qa.errors).toEqual([]);
+  await stop(page).click();
+});
+
+test("a changed cart cannot reopen ordinary PCM after explicit capture has started", async ({
+  page,
+}) => {
+  const qa = await prepare(page);
+  await start(page).click();
+  await listening(page);
+  const readback = qa.confirmation();
+  qa.set({ ...qa.get(), voice_confirmation: readback });
+  qa.send({ type: "confirmation_readback", ...readback, generation: 0 });
+  qa.send({ type: "audio", generation: 0, audio });
+  qa.send(complete());
+  await expect.poll(() => qa.readbacks().length).toBe(1);
+  const armed = {
+    ...readback,
+    status: "awaiting_confirmation" as const,
+    ready_at: new Date().toISOString(),
+  };
+  qa.set({ ...qa.get(), voice_confirmation: armed });
+  qa.send({ type: "confirmation_ready", ...armed, generation: 0 });
+  await page
+    .getByRole("button", { name: "Record spoken confirmation", exact: true })
+    .click();
+  qa.send({
+    ...complete(),
+    type: "confirmation_capture_started",
+    capture_id: "20000000-0000-4000-8000-000000000071",
+  });
+  await expect(
+    page.getByRole("button", {
+      name: "Finish spoken confirmation",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  qa.set({
+    ...qa.get(),
+    voice_confirmation: null,
+    cart_version: readback.cart_version + 1,
+    cart: { ...qa.get().cart, version: readback.cart_version + 1 },
+  });
+  qa.send({ type: "cart_changed" });
+  await expect(
+    page.getByRole("button", {
+      name: "Finish spoken confirmation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page.waitForTimeout(100);
+  const changedCount = qa.audioFrames.length;
+  await page.waitForTimeout(120);
+  expect(qa.audioFrames).toHaveLength(changedCount);
+  // The cart-version effect has already cleared the visible recording phase.
+  // A later invalidation still belongs to the explicit capture and must stop.
+  qa.send({ type: "confirmation_invalidated" });
+  await expect(
+    page.getByText(
+      "Spoken confirmation was not accepted. Review the order again.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect.poll(() => tracks(page)).toEqual(["ended"]);
+  const stoppedCount = qa.audioFrames.length;
+  await page.waitForTimeout(120);
+  expect(qa.audioFrames).toHaveLength(stoppedCount);
+  expect(qa.submitRequests).toEqual([]);
+  expect(qa.get().order).toBeNull();
   expect(qa.errors).toEqual([]);
 });
 
@@ -334,6 +595,41 @@ test("partial user input, stale scope, missing audio and wrong completion cannot
       exact: true,
     }),
   ).toBeVisible();
+  await page
+    .getByLabel("Type to Nova", { exact: true })
+    .fill("What is the total?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Typed input disables spoken confirmation. Stop voice and review the order again on screen.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const late = {
+    ...qa.confirmation(
+      "20000000-0000-4000-8000-000000000003",
+      "awaiting_confirmation",
+    ),
+    generation: 0,
+  };
+  qa.set({ ...qa.get(), voice_confirmation: late });
+  qa.send({ type: "confirmation_readback", ...late });
+  qa.send({ type: "confirmation_ready", ...late });
+  qa.send({
+    type: "caption",
+    role: "ASSISTANT",
+    final: true,
+    text: "Ready for screen confirmation.",
+  });
+  await expect(
+    page.getByText("SayGo: Ready for screen confirmation.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Record spoken confirmation",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   expect(qa.readbacks()).toEqual([]);
   expect(qa.submitRequests).toEqual([]);
   await stop(page).click();

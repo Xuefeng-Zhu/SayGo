@@ -79,7 +79,7 @@ export const menuPriceInputSchema = z
               .string()
               .regex(/^[A-Za-z0-9_-]{1,40}$/)
               .describe(
-                "Unique label for this candidate, e.g. baseline or upgraded. The FIRST option is the comparison baseline.",
+                "Unique label for this candidate: 1-40 letters, digits, underscore or hyphen; no spaces. For example, baseline or upgraded. The FIRST option is the comparison baseline.",
               ),
             selections: z.array(menuPriceSelectionSchema).min(1).max(10),
           })
@@ -156,7 +156,7 @@ export const toolSchemas = {
         .string()
         .uuid()
         .describe(
-          "Exact quote ID already approved by the customer UI. Retry the same ID, never create a replacement order.",
+          "Exact quote ID explicitly approved by the customer through screen confirmation or supported server-verified spoken recording. This tool cannot create approval. Retry the same ID, never create a replacement order.",
         ),
     })
     .strict(),

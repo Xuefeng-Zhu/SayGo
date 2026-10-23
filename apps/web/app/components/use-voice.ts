@@ -9,6 +9,35 @@ export type ResetProposal = {
   epoch: number;
   fence: number;
 };
+export type SpokenConfirmationPhase =
+  | "idle"
+  | "ready"
+  | "starting"
+  | "recording"
+  | "verifying";
+type ReadbackIdentity = {
+  readback_id: string;
+  readback_hash: string;
+  generation: number;
+};
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function readbackIdentity(frame: Record<string, unknown>): ReadbackIdentity {
+  if (
+    typeof frame.readback_id !== "string" ||
+    !uuid.test(frame.readback_id) ||
+    typeof frame.readback_hash !== "string" ||
+    !/^[a-f0-9]{64}$/i.test(frame.readback_hash) ||
+    typeof frame.generation !== "number" ||
+    !Number.isSafeInteger(frame.generation) ||
+    frame.generation < 0
+  )
+    throw new Error("Invalid spoken confirmation identity");
+  return {
+    readback_id: frame.readback_id,
+    readback_hash: frame.readback_hash,
+    generation: frame.generation,
+  };
+}
 export function useVoice(
   sessionId: string | undefined,
   epoch: number | undefined,
@@ -21,7 +50,9 @@ export function useVoice(
     [caption, setCaption] = useState(""),
     [pending, setPending] = useState(false),
     [active, setActive] = useState(false),
-    [confirmationUnavailable, setConfirmationUnavailable] = useState(false);
+    [confirmationUnavailable, setConfirmationUnavailable] = useState(false),
+    [spokenConfirmation, setSpokenConfirmation] =
+      useState<SpokenConfirmationPhase>("idle");
   const cleanup = useRef<() => void>(() => {}),
     interruptPlayback = useRef<() => void>(() => {}),
     socket = useRef<WebSocket | null>(null),
@@ -29,6 +60,9 @@ export function useVoice(
     onCartRef = useRef(onCart),
     onResetRef = useRef(onReset),
     invalidateReadback = useRef<() => void>(() => {}),
+    beginConfirmation = useRef<() => void>(() => {}),
+    finishConfirmation = useRef<() => void>(() => {}),
+    disableSpokenConfirmation = useRef<() => void>(() => {}),
     currentControl = useRef(control),
     controlKey = useRef("");
   const key = `${sessionId}:${epoch}:${control?.fence}:${control?.enabled ?? true}`;
@@ -43,11 +77,15 @@ export function useVoice(
     invalidateReadback.current = () => {};
     cleanup.current = () => {};
     interruptPlayback.current = () => {};
+    beginConfirmation.current = () => {};
+    finishConfirmation.current = () => {};
+    disableSpokenConfirmation.current = () => {};
     socket.current = null;
     setActive(false);
     setPending(false);
     setCaption("");
     setConfirmationUnavailable(false);
+    setSpokenConfirmation("idle");
     setStatus("Microphone off");
   }, []);
   useEffect(() => {
@@ -71,14 +109,81 @@ export function useVoice(
       ws: WebSocket | undefined,
       worklet: AudioWorkletNode | undefined;
     const readback = new ReadbackPlayback();
-    invalidateReadback.current = () => readback.invalidate();
     const playback = new PlaybackQueue(
       () => context?.currentTime ?? 0,
       () => acknowledgeReadback(),
     );
     let ready = false,
       waitingForInterrupt: string | undefined,
-      unsupportedConfirmation = false;
+      unsupportedConfirmation = false,
+      forwardPcm = false,
+      phase: SpokenConfirmationPhase = "idle",
+      identity: ReadbackIdentity | undefined,
+      captureId: string | undefined,
+      captureRequested = false,
+      confirmationExpiry: ReturnType<typeof setTimeout> | undefined,
+      inputReset:
+        | { id: string; enabled: boolean; after?: () => void }
+        | undefined;
+    const changePhase = (next: SpokenConfirmationPhase) => {
+      phase = next;
+      if (current()) setSpokenConfirmation(next);
+    };
+    // Port messages are ordered. A reset acknowledgement retires all earlier
+    // PCM, while a sealing acknowledgement follows the final partial frame.
+    const setInput = (enabled: boolean, after?: () => void, flush = false) => {
+      if (!flush) forwardPcm = false;
+      if (!worklet) return;
+      const id = crypto.randomUUID();
+      inputReset = { id, enabled, after };
+      worklet.port.postMessage({
+        type: "capture_state",
+        enabled,
+        request_id: id,
+        flush,
+      });
+    };
+    const clearConfirmation = (resume = true) => {
+      clearTimeout(confirmationExpiry);
+      confirmationExpiry = undefined;
+      identity = undefined;
+      captureId = undefined;
+      changePhase("idle");
+      // A readback can arrive while the customer is already speaking. Keep
+      // ordinary PCM continuous; approval capture still performs explicit
+      // resets before its request and after the server acknowledgement.
+      if (
+        !resume ||
+        !forwardPcm ||
+        inputReset ||
+        !ready ||
+        waitingForInterrupt ||
+        captureRequested
+      )
+        setInput(resume && ready && !waitingForInterrupt && !captureRequested);
+    };
+    const cancelConfirmation = (expired = false) => {
+      unsupportedConfirmation = true;
+      readback.invalidate();
+      clearConfirmation();
+      setConfirmationUnavailable(true);
+      setStatus(
+        `Spoken confirmation ${expired ? "expired" : "cancelled"}. Continue ordering; stop and restart voice to confirm by voice, or confirm on screen.`,
+      );
+    };
+    invalidateReadback.current = () => {
+      readback.invalidate();
+      clearConfirmation();
+    };
+    disableSpokenConfirmation.current = () => {
+      unsupportedConfirmation = true;
+      readback.invalidate();
+      clearConfirmation();
+      setConfirmationUnavailable(true);
+      setStatus(
+        "Typed input disables spoken confirmation. Stop voice and review the order again on screen.",
+      );
+    };
     const captureEnded = () => fail("Microphone disconnected. Voice stopped.");
     const acknowledgeReadback = () => {
       if (
@@ -106,6 +211,9 @@ export function useVoice(
     };
     const release = () => {
       ready = false;
+      forwardPcm = false;
+      clearTimeout(confirmationExpiry);
+      inputReset = undefined;
       readback.invalidate();
       playback.clear();
       if (worklet) {
@@ -172,6 +280,22 @@ export function useVoice(
       worklet.port.onmessage = (e) => {
         if (!current() || !ready || connection.readyState !== WebSocket.OPEN)
           return;
+        if (!(e.data instanceof ArrayBuffer)) {
+          const message = e.data as Record<string, unknown>;
+          if (
+            message?.type === "capture_state" &&
+            inputReset &&
+            inputReset.id === message.request_id &&
+            inputReset.enabled === message.enabled
+          ) {
+            const reset = inputReset;
+            inputReset = undefined;
+            forwardPcm = reset.enabled;
+            reset.after?.();
+          }
+          return;
+        }
+        if (!forwardPcm) return;
         if (connection.bufferedAmount > 64000)
           return fail("Audio connection is too slow. Microphone stopped.");
         try {
@@ -186,6 +310,7 @@ export function useVoice(
         readback.invalidate();
         playback.clear();
         waitingForInterrupt = crypto.randomUUID();
+        clearConfirmation(false);
         setCaption("");
         setStatus("Listening · response interrupted");
         try {
@@ -198,6 +323,66 @@ export function useVoice(
         } catch {
           fail("Live speech connection failed. Microphone stopped.");
         }
+      };
+      beginConfirmation.current = () => {
+        if (
+          !current() ||
+          !ready ||
+          unsupportedConfirmation ||
+          waitingForInterrupt ||
+          phase !== "ready" ||
+          !identity ||
+          connection.readyState !== WebSocket.OPEN
+        )
+          return;
+        setInput(false);
+        // The server may have opened this capture before its acknowledgement
+        // arrives. Clearing local presentation state must never reopen ordinary
+        // input for this connection after this irreversible boundary.
+        captureRequested = true;
+        changePhase("starting");
+        setStatus("Preparing spoken confirmation…");
+        try {
+          connection.send(
+            JSON.stringify({ type: "confirmation_capture_start", ...identity }),
+          );
+        } catch {
+          fail("Live speech connection failed. Microphone stopped.");
+        }
+      };
+      finishConfirmation.current = () => {
+        if (
+          !current() ||
+          phase !== "recording" ||
+          !captureId ||
+          connection.readyState !== WebSocket.OPEN
+        )
+          return;
+        const sealedId = captureId;
+        clearTimeout(confirmationExpiry);
+        changePhase("verifying");
+        setStatus("Verifying spoken confirmation…");
+        setPending(true);
+        // Flush the final samples before the end marker. The button seals the
+        // recording; only server-verified speech can authorize an order.
+        setInput(
+          false,
+          () => {
+            if (!current() || captureId !== sealedId || phase !== "verifying")
+              return;
+            try {
+              connection.send(
+                JSON.stringify({
+                  type: "confirmation_capture_end",
+                  capture_id: sealedId,
+                }),
+              );
+            } catch {
+              fail("Live speech connection failed. Microphone stopped.");
+            }
+          },
+          true,
+        );
       };
       connection.onopen = () => {
         if (!current()) return release();
@@ -219,6 +404,7 @@ export function useVoice(
             return;
           if (msg.type === "ready") {
             ready = true;
+            setInput(true);
             setPending(false);
             setStatus("Listening · AI-generated speech");
           }
@@ -245,6 +431,7 @@ export function useVoice(
             }
             if (msg.generation < playback.generation) return;
             readback.invalidate();
+            clearConfirmation();
             playback.interrupt(msg.generation);
             setCaption("");
             setStatus("Listening · response interrupted");
@@ -265,7 +452,17 @@ export function useVoice(
           if (msg.type === "cart_changed") onCartRef.current();
           if (msg.type === "confirmation_readback") {
             if (unsupportedConfirmation) return;
+            clearConfirmation();
+            setStatus("Listening · speak to change your order during readback");
             readback.begin(msg, playback.generation, Date.now());
+            const next = readbackIdentity(msg);
+            if (
+              next.generation === playback.generation &&
+              msg.cart_version === currentControl.current?.cartVersion &&
+              typeof msg.expires_at === "string" &&
+              Date.parse(msg.expires_at) > Date.now()
+            )
+              identity = next;
             onCartRef.current();
           }
           if (msg.type === "confirmation_readback_complete") {
@@ -276,11 +473,80 @@ export function useVoice(
           if (msg.type === "confirmation_invalidated") {
             readback.invalidate();
             onCartRef.current();
+            if (phase === "verifying")
+              return fail(
+                "Confirmation result was not verified. Check the order status before trying again.",
+              );
+            if (captureRequested)
+              return fail(
+                "Spoken confirmation was not accepted. Review the order again.",
+              );
+            cancelConfirmation(msg.reason === "CONFIRMATION_EXPIRED");
           }
-          if (msg.type === "confirmation_ready") onCartRef.current();
+          if (msg.type === "confirmation_ready") {
+            if (unsupportedConfirmation) return;
+            const next = readbackIdentity(msg);
+            if (
+              !identity ||
+              next.readback_id !== identity.readback_id ||
+              next.readback_hash !== identity.readback_hash ||
+              next.generation !== identity.generation ||
+              typeof msg.expires_at !== "string" ||
+              !Number.isFinite(Date.parse(msg.expires_at)) ||
+              Date.parse(msg.expires_at) <= Date.now()
+            )
+              throw new Error("Stale spoken confirmation window");
+            setInput(false);
+            changePhase("ready");
+            setStatus("Microphone paused · ready for spoken confirmation");
+            clearTimeout(confirmationExpiry);
+            confirmationExpiry = setTimeout(
+              () => {
+                if (phase === "ready") cancelConfirmation(true);
+                else
+                  fail("Spoken confirmation expired. Review the order again.");
+              },
+              Date.parse(msg.expires_at) - Date.now(),
+            );
+            onCartRef.current();
+          }
+          if (msg.type === "confirmation_capture_started") {
+            if (unsupportedConfirmation) return;
+            const next = readbackIdentity(msg);
+            if (
+              phase !== "starting" ||
+              !identity ||
+              next.readback_id !== identity.readback_id ||
+              next.readback_hash !== identity.readback_hash ||
+              next.generation !== identity.generation ||
+              typeof msg.capture_id !== "string" ||
+              !uuid.test(msg.capture_id)
+            )
+              throw new Error("Invalid spoken confirmation capture");
+            captureId = msg.capture_id;
+            setInput(true, () => {
+              if (!current() || phase !== "starting") return;
+              changePhase("recording");
+              setStatus(
+                "Recording spoken confirmation · say the complete sentence",
+              );
+            });
+          }
+          if (msg.type === "confirmation_verifying") {
+            if (msg.capture_id !== captureId || phase !== "verifying")
+              throw new Error("Invalid spoken confirmation seal");
+            setInput(false);
+            setPending(true);
+          }
+          if (msg.type === "confirmation_committed") {
+            clearConfirmation(false);
+            setStatus("Order submitted · waiting for kitchen acceptance");
+            onCartRef.current();
+          }
           if (msg.type === "confirmation_unavailable") {
             unsupportedConfirmation = true;
             readback.invalidate();
+            clearConfirmation();
             setConfirmationUnavailable(true);
             setStatus(
               "Voice confirmation isn’t available for this connection. Stop voice and confirm on screen.",
@@ -289,6 +555,7 @@ export function useVoice(
           }
           if (msg.type === "reset_proposed") {
             readback.invalidate();
+            clearConfirmation();
             if (
               typeof msg.reset_token !== "string" ||
               msg.reset_token.length < 20 ||
@@ -373,8 +640,11 @@ export function useVoice(
     pending,
     active,
     confirmationUnavailable,
+    spokenConfirmation,
+    beginSpokenConfirmation: () => beginConfirmation.current(),
+    finishSpokenConfirmation: () => finishConfirmation.current(),
     text: (text: string) => {
-      invalidateReadback.current();
+      disableSpokenConfirmation.current();
       if (socket.current?.readyState === WebSocket.OPEN)
         socket.current.send(JSON.stringify({ type: "text", text }));
     },

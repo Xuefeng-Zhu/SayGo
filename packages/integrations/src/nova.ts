@@ -38,6 +38,11 @@ export type VoiceSessionOptions = {
     result: Record<string, unknown>,
   ) => void;
   maximumToolCalls?: number;
+  /** Server-only sealed-recording gate; this never invokes MCP or approves. */
+  retainSubmission?: (
+    args: Record<string, unknown>,
+  ) => Promise<Record<string, unknown>>;
+  onSubmissionPendingSent?: () => void;
   /** Server-only observations from the provider decoder, never browser proof. */
   onProviderEvidence?: (e: ProviderVoiceEvidence) => void;
   transformToolResult?: (
@@ -104,6 +109,8 @@ export class NovaSession {
   });
   private controller = new AbortController();
   private closed = false;
+  private inputFinished = false;
+  private sessionFinished = false;
   private prompt = randomUUID();
   private audioName = randomUUID();
   private gen = new AudioGeneration();
@@ -173,7 +180,9 @@ export class NovaSession {
         // The customer board owns approval and submission after voice stops.
         // Do not expose an action that a spoken "yes" cannot authorize.
         tools: this.mcp.tools
-          .filter((t) => t.name !== "submit_order")
+          .filter(
+            (t) => t.name !== "submit_order" || !!this.options.retainSubmission,
+          )
           .map((t) => {
             const inputSchema = structuredClone(t.inputSchema);
             if (gatewayRequestTools.has(t.name)) {
@@ -205,9 +214,9 @@ export class NovaSession {
         "When asked to make the current order cheaper or find meal savings, use find_meal_savings. Describe only its exact equivalent grouping and savings. This read does not edit the cart. The customer must stop voice and select Apply meal savings on the board; do not apply that proposal yourself through apply_cart_changes. Never add food or alter a size/modification to manufacture savings. For undo requests, direct the customer to stop voice and use Undo last change; do not reconstruct earlier cart state yourself.\n" +
         "For an existing item's size, choice or quantity correction, use a type:update command with its existing line_id; do not remove and re-add that item. For a read-tool error with next_action=correct_arguments, inspect the menu/schema and submit corrected complete arguments; do not refuse a supported menu inquiry merely because an earlier argument was incomplete.\n" +
         "Distinguish an explicit cart edit from a hypothetical price question. When the customer unambiguously requests adding, removing or changing an item, perform that edit with apply_cart_changes at the current cart version, then briefly acknowledge only the changed items and their confirmed quantities, sizes and modifiers from the successful tool result. Do not announce totals after routine edits; use canonical tool prices/totals only when asked, needed to resolve a price question, or reviewing the order. Do not replace a requested edit with a price comparison or ask again whether to perform that same edit. Ask only when the target or required choice is ambiguous. Use compare_menu_prices for informational inquiries that do not request a cart edit. Prepare an order review only when the customer asks to review or finalize, not automatically after each edit.\n" +
-        `You are SayGo, a concise AI order taker at fictional Harbor Burger. This is an independent Alexa+ concept simulator, not Alexa. Disclose AI speech once. Always get_menu and get_cart before ordering. Ground items, prices, availability and acceptance ONLY in tools. Ask one necessary question. When a category matches several menu items, ask which item before adding; never pick a default. Offer at most three relevant choices. Use exact stable line IDs and cart versions; customized copies stay separate. Never guess what 'one' or 'that' refers to. Use apply_cart_changes clarification for ambiguity. Do not invent notes, modifiers, promotions, preparation times, prices or safety guarantees. On allergy concerns call request_staff_help immediately. Never approve or submit an order yourself: prepare_order_review then direct the customer to stop voice and use the Confirm order button. The board handles approval and submission; never call submit_order, even after a spoken yes, confirm or finalize request. Voice yes is not consent in this simulator. The voice gateway supplies transport request IDs for cart edits and reviews; do not invent those IDs. Never supply reset_token; reset confirmation is touch-only. A successful cancel_draft_order call only PROPOSES a reset: the draft is unchanged until the customer touches Confirm reset. Never say it is cancelled, cleared or reset at that stage. Say: Your draft is unchanged. Please stop voice and select Confirm reset on the screen to clear it. Submitted/unknown is not accepted. Payment is due at the window, never collect card details. Accepted changes go to staff. On version conflict re-read canonical cart and reconcile; do not replay blindly. A barge-in stops speech, not committed changes. No unsolicited upselling, optional suggestions or additions. Answer requested menu questions directly. Do not read full cart after every change. At review use the server quote, do not claim your spoken summary constitutes approval. The gateway retains request identity for identical review retries. Expired or changed quotes require a new review and customer approval; after STALE_QUOTE, re-read the cart and request a fresh review. Follow structured error.next_action; retryable=false never authorizes blindly replaying a write. Wait for staff on FENCED and never try to bypass ownership.` +
+        `You are SayGo, a concise AI order taker at fictional Harbor Burger. This is an independent Alexa+ concept simulator, not Alexa. Disclose AI speech once. Always get_menu and get_cart before ordering. Ground items, prices, availability and acceptance ONLY in tools. Ask one necessary question. When a category matches several menu items, ask which item before adding; never pick a default. Offer at most three relevant choices. Use exact stable line IDs and cart versions; customized copies stay separate. Never guess what 'one' or 'that' refers to. Use apply_cart_changes clarification for ambiguity. Do not invent notes, modifiers, promotions, preparation times, prices or safety guarantees. On allergy concerns call request_staff_help immediately. ${this.options.retainSubmission ? "At finalization call prepare_order_review and read required_spoken_readback exactly. The customer may then explicitly record and finish spoken approval using the board. Only after actual customer speech saying Yes, place the order may you request submit_order with that exact quote_id. The server independently verifies the complete sealed audio and may defer this request. PENDING_VERIFICATION means NO order has been submitted; do not claim success or repeat the request. Never infer consent from your own words, typed input, a review request or an earlier customer turn." : "Never approve or submit an order yourself: prepare_order_review then direct the customer to stop voice and use the Confirm order button. The board handles approval and submission; never call submit_order, even after a spoken yes, confirm or finalize request. Voice yes is not consent in this simulator."} The voice gateway supplies transport request IDs for cart edits and reviews; do not invent those IDs. Never supply reset_token; reset confirmation is touch-only. A successful cancel_draft_order call only PROPOSES a reset: the draft is unchanged until the customer touches Confirm reset. Never say it is cancelled, cleared or reset at that stage. Say: Your draft is unchanged. Please stop voice and select Confirm reset on the screen to clear it. Submitted/unknown is not accepted. Payment is due at the window, never collect card details. Accepted changes go to staff. On version conflict re-read canonical cart and reconcile; do not replay blindly. A barge-in stops speech, not committed changes. No unsolicited upselling, optional suggestions or additions. Answer requested menu questions directly. Do not read full cart after every change. At review use the server quote, do not claim your spoken summary constitutes approval. The gateway retains request identity for identical review retries. Expired or changed quotes require a new review and customer approval; after STALE_QUOTE, re-read the cart and request a fresh review. Follow structured error.next_action; retryable=false never authorizes blindly replaying a write. Wait for staff on FENCED and never try to bypass ownership.` +
         "\n" +
-        `Spoken delivery: Keep routine acknowledgments to one short, natural sentence about the change just confirmed by tools, then let the customer speak. Do not repeat unchanged items, full-cart summaries, totals, AI disclosures, payment details or confirmation instructions after each edit. Skip filler, praise, explanations of your tool use and repeated Anything else questions. Ask only one clarification question at a time when an item, quantity or required choice is ambiguous. After a successful change to a medium lemonade with no ice, for example, say: Medium lemonade, no ice. Use that example only if the actual tool result matches; never infer success from the customer's request. If the customer asks to finish, prepare_order_review and briefly say: Stop voice and tap Confirm order on the screen. Do not request spoken approval. Concision never overrides truthful errors, unresolved ambiguity, allergy/staff escalation or customer consent. If a tool fails, briefly state the failure and the necessary next step; never imply the change succeeded. Give enough detail to resolve those cases or answer an explicitly requested review, without a rigid word limit.`,
+        `Spoken delivery: Keep routine acknowledgments to one short, natural sentence about the change just confirmed by tools, then let the customer speak. Do not repeat unchanged items, full-cart summaries, totals, AI disclosures, payment details or confirmation instructions after each edit. Skip filler, praise, explanations of your tool use and repeated Anything else questions. Ask only one clarification question at a time when an item, quantity or required choice is ambiguous. After a successful change to a medium lemonade with no ice, for example, say: Medium lemonade, no ice. Use that example only if the actual tool result matches; never infer success from the customer's request. ${this.options.retainSubmission ? "If the customer asks to finish, prepare_order_review and read required_spoken_readback exactly, including every modifier and total. Do not shorten or paraphrase that required readback. Then wait for the customer to record spoken approval; never claim the readback itself is consent." : "If the customer asks to finish, prepare_order_review and briefly say: Stop voice and tap Confirm order on the screen. Do not request spoken approval."} Concision never overrides truthful errors, unresolved ambiguity, allergy/staff escalation or customer consent. If a tool fails, briefly state the failure and the necessary next step; never imply the change succeeded. Give enough detail to resolve those cases or answer an explicitly requested review, without a rigid word limit.`,
     );
     this.send("contentStart", {
       promptName: this.prompt,
@@ -272,6 +281,7 @@ export class NovaSession {
     }
   }
   audio(bytes: Buffer) {
+    if (this.inputFinished) throw new Error("Audio input is sealed");
     if (bytes.length > 4096 || bytes.length % 2)
       throw new Error("Invalid PCM frame");
     this.send("audioInput", {
@@ -281,6 +291,7 @@ export class NovaSession {
     });
   }
   userText(text: string) {
+    if (this.inputFinished) throw new Error("Audio input is sealed");
     this.text("USER", text.slice(0, 500), true);
   }
   interrupt() {
@@ -433,11 +444,15 @@ export class NovaSession {
             let result: Record<string, unknown>;
             let args: Record<string, unknown> = {};
             let generatedKey: string | undefined;
+            let retained = false;
             try {
               args = z
                 .record(z.string(), z.unknown())
                 .parse(JSON.parse(request.args));
-              if (request.name === "submit_order")
+              if (
+                request.name === "submit_order" &&
+                !this.options.retainSubmission
+              )
                 throw new McpCallError(
                   recoveryFor(
                     "VOICE_PENDING",
@@ -461,14 +476,19 @@ export class NovaSession {
                 this.generatedRequestIds.set(generatedKey, id);
                 args = { ...normalized, request_id: id };
               }
-              result = await this.mcp.call(request.name, args);
-              if (this.options.transformToolResult)
+              retained =
+                request.name === "submit_order" &&
+                !!this.options.retainSubmission;
+              result = retained
+                ? await this.options.retainSubmission!(args)
+                : await this.mcp.call(request.name, args);
+              if (!retained && this.options.transformToolResult)
                 result = await this.options.transformToolResult(
                   request.name,
                   args,
                   result,
                 );
-              this.emit({ type: "cart_changed" });
+              if (!retained) this.emit({ type: "cart_changed" });
             } catch (e) {
               if (
                 generatedKey &&
@@ -487,7 +507,8 @@ export class NovaSession {
                       ),
               };
             }
-            this.options.onTool?.(request.name, args, result);
+            // Retained requests have not crossed MCP and are not tool-call evidence.
+            if (!retained) this.options.onTool?.(request.name, args, result);
             const providerResult = { ...result };
             if (
               request.name === "cancel_draft_order" &&
@@ -520,6 +541,7 @@ export class NovaSession {
               content: JSON.stringify(providerResult),
             });
             this.send("contentEnd", { promptName: this.prompt, contentName });
+            if (retained) this.options.onSubmissionPendingSent?.();
           })
           .finally(() => {
             this.pending--;
@@ -538,15 +560,28 @@ export class NovaSession {
   drain() {
     return this.tasks;
   }
+  /** Seal only the application-defined audio recording. Keep tool responses open. */
+  finishInput() {
+    if (this.closed || this.inputFinished) return;
+    this.send("contentEnd", {
+      promptName: this.prompt,
+      contentName: this.audioName,
+    });
+    this.inputFinished = true;
+  }
+  /** Called only after a pending tool response or response completion is drained. */
+  finishSession() {
+    if (this.closed || this.sessionFinished) return;
+    this.finishInput();
+    this.send("promptEnd", { promptName: this.prompt });
+    this.send("sessionEnd", {});
+    this.sessionFinished = true;
+    this.queue.close();
+  }
   close() {
     if (this.closed) return;
     try {
-      this.send("contentEnd", {
-        promptName: this.prompt,
-        contentName: this.audioName,
-      });
-      this.send("promptEnd", { promptName: this.prompt });
-      this.send("sessionEnd", {});
+      this.finishSession();
     } catch {
       // Backpressure may be why we are stopping. A full queue cannot accept
       // graceful teardown; abort it instead of throwing from socket callbacks.

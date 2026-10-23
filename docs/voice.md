@@ -1,6 +1,6 @@
 # Voice lifecycle
 
-SayGo streams browser audio to Nova 2 Sonic and uses MCP tools to update the order. Live voice is opt-in. The saved [October 14 trial](evidence/live-voice-sonic-v4-i-20261014.json) used synthetic audio; physical microphone/speaker behavior needs separate verification. The current Nova adapter requires screen confirmation.
+SayGo streams browser audio to Nova 2 Sonic and uses MCP tools to update the order. Live voice is opt-in. The selected [October 23 take](submission/demo.md) verifies synthetic-audio ordering and sealed spoken approval through fresh Nova streams and remote DynamoDB. Physical microphone/speaker behavior remains unverified. The [October 14 trial](evidence/live-voice-sonic-v4-i-20261014.json) is separate historical evidence.
 
 ## Enable live voice
 
@@ -16,7 +16,7 @@ SAYGO_VOICE_MODEL=amazon.nova-2-sonic-v1:0
 
 Shell values override `.env`. If the current terminal has voice disabled, run `export SAYGO_VOICE_ENABLED=true`. Restart `pnpm dev`, begin a customer session and select **Start live voice** to request microphone access. Use the configured `localhost` origin. Replies use an AI-generated Nova voice.
 
-To place the order, stop voice, review the current quote and select **Confirm order**. A failed stream displays an error; the customer can choose text or scripted examples as a fallback.
+To confirm on screen, stop voice and select **Confirm order**. To confirm by speech, follow [spoken order approval](#spoken-order-approval). A failed stream displays an error; the customer can choose text or scripted examples as a fallback.
 
 Live sessions incur provider charges. Application voice does not use the [test harness](#synthetic-live-test)'s spending ledger or 90-second cap.
 
@@ -28,18 +28,23 @@ Live sessions incur provider charges. Application voice does not use the [test h
 4. The adapter waits for `TOOL_USE` content to end before parsing and validating arguments, then calling MCP. Tool calls run serially with a bounded queue. Errors return the required recovery action. Provisional captions never cause cart writes.
 5. Provider audio is 24 kHz mono PCM. Web Audio queues bursts of speech with limits of 30 seconds and 512 sources. Interruption clears active/scheduled audio. Fresh audio content can resume under a reused completion ID; delayed old content stays rejected. User transcripts remain visible during assistant playback suppression. Interrupting speech leaves committed writes intact; cart versions and ownership checks govern further writes.
 6. UI captions distinguish provisional and final text. Live text fallback goes to the same Nova session. Stop, staff takeover, expiry, a new vehicle, stream failure or the seven-minute application limit closes the microphone, playback and stream.
-7. A database voice lease blocks approval until voice stops and queued tools finish. The UI also disables review during live speech. The current Nova adapter requires screen confirmation and cannot submit an order from speech.
+7. A database voice lease blocks screen approval until voice stops and queued tools finish. Spoken approval uses a separate sealed recording after an exact readback. The gateway validates the complete recording before storing consent, releases that connection's lease, and invokes the model-requested `submit_order` through MCP. Model prose and typed text cannot create voice consent.
 
 ## Spoken order approval
 
-Spoken confirmation is unavailable on the current Nova adapter. A finalized transcript can be only part of an utterance; a later fragment may add a correction or negation. The runtime therefore keeps this path closed. Stop voice, review the quote and select **Confirm order** on screen.
+1. Ask SayGo to review the order. Listen to the full readback and check the items and total.
+2. Select **Record spoken confirmation**, say **“Yes, place my order,”** then select **Finish spoken confirmation**. The button closes the recording; the spoken words provide approval.
+3. Wait for the accepted-order state. Payment is due at the window.
 
-The server and UI include a guarded implementation for an adapter that can supply complete speech evidence. Its controlled tests do not establish current Nova support. See [confirmation requirements and the recorded provider probe](voice-confirmation.md).
+The gateway binds the recording to the current customer, connection, quote, cart version and completed playback. It accepts only a complete explicit affirmative phrase. It rejects negative, extra, provisional or missing transcript content, changed quotes, expired windows, typed input, lost connections and abnormal provider termination. Stop voice and use a fresh screen review if spoken verification cannot finish.
+
+Nova's finalized USER transcripts can end with `PARTIAL_TURN`, so one segment alone cannot establish the full utterance. The gateway closes audio input, retains the model's submission request and returns `PENDING_VERIFICATION`. It then closes the provider session and waits for all transcript fragments through natural stream termination before acting. The existing provider-`USER END_TURN` gate remains separate. See the official [input lifecycle](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-input-events.html) and [output lifecycle](https://docs.aws.amazon.com/nova/latest/nova2-userguide/sonic-output-events.html).
+
+The October 23 take verifies this path with synthetic customer audio: no order before sealed capture, natural provider completion before approval, and one voice-approved order/receipt. The October 14 receipts below predate it and remain historical. See [current verification](submission/verification.md).
 
 ## Remaining verification
 
-- Run Sonic against the current price guidance and meal-savings tool.
-- Verify complete speech evidence before enabling spoken confirmation on an adapter.
+- Broaden the successful synthetic take beyond the selected menu/price/savings and sealed-approval scenario; one take does not establish general reliability.
 - Test other accounts/regions and sustained sessions.
 - Test microphone capture, resampling, permission denial, reconnects and echo across browsers and devices.
 - Measure response latency, interruption ordering, late audio under network delay, model/tool accuracy and spoken prices.
@@ -57,7 +62,7 @@ The [successful trial](evidence/live-voice-sonic-v4-i-20261014.json) sent offlin
 
 Chromium was muted. The trial tested no physical microphone, speaker, noisy outdoor audio or independent acoustic price assessment. It observed no provider interruption signals; earlier failed trials did. It therefore provides no acoustic barge-in or reliability estimate.
 
-The [source manifest](evidence/live-voice-i-source-manifest.json) predates the later October 14 price-guidance and signed-summary changes and contract 0.5's `find_meal_savings`. Sonic was not rerun for the text-only follow-up. See [evaluation history](evaluation.md) for later checkpoints.
+The [source manifest](evidence/live-voice-i-source-manifest.json) predates the later October 14 price-guidance and signed-summary changes, contract 0.5's `find_meal_savings`, and sealed spoken confirmation. Sonic was not rerun for the text-only follow-up. See [evaluation history](evaluation.md) for later checkpoints.
 
 ## Synthetic live test
 

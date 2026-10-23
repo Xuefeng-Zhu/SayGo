@@ -11,7 +11,7 @@ Web gateway durations run from invocation to validated response. Calls from othe
 - The authenticated customer cookie selects the session. The API accepts no caller-selected customer or log identifier.
 - Entries retain only allowlisted operation categories, counts, prices and status descriptions. They exclude raw arguments, model prose, IDs, notes, credentials and backend exceptions.
 - A transport error appears as **Result not confirmed**. Check the order before retrying: an interrupted write may have committed.
-- The log has no retry or submit controls. An order requires explicit customer screen approval before submission to the POS sandbox. The current Nova adapter cannot submit an order from speech.
+- The log has no retry or submit controls. An order requires customer approval through the screen or the [sealed spoken confirmation flow](voice.md#spoken-order-approval). A deferred voice submission enters the log when it invokes MCP after verified consent. The earlier pending-verification response does not count as a completed MCP call.
 
 ## Lifetime and reconnects
 

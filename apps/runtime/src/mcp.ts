@@ -34,7 +34,7 @@ const descriptions: Record<ToolName, string> = {
   apply_cart_changes:
     "Apply an atomic typed batch at expected_version. Use a unique request_id. Select exact line IDs; for ambiguous references submit clarification with no commands. Re-read after version conflict; never retry by guessing.",
   prepare_order_review:
-    "Create a two-minute exact-price review after all required choices and staff concerns are resolved. Use a request_id UUID; retries with identical arguments return the same still-valid quote without extending expiry. On STALE_QUOTE, get_cart and create a fresh review with a NEW request_id. Customer must approve in the UI.",
+    "Create a two-minute exact-price review after all required choices and staff concerns are resolved. Use a request_id UUID; retries with identical arguments return the same still-valid quote without extending expiry. On STALE_QUOTE, get_cart and create a fresh review with a NEW request_id. The customer must explicitly approve this exact quote through supported server-verified spoken recording after playback, or explicit screen confirmation. Preparing a review does not approve or submit the order.",
   submit_order:
     "Submit only a quote already approved by the authenticated customer. This tool cannot create approval. Retry with the SAME quote ID; pending or unknown is not acceptance.",
   get_order_status:

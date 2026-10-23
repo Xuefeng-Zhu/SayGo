@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   recoveryFor,
   toolDataSchemas,
@@ -31,6 +32,18 @@ describe("MCP contracts", () => {
         confirmed: true,
       }).success,
     ).toBe(false);
+    const schema = z.toJSONSchema(toolSchemas.submit_order);
+    expect(schema.properties?.quote_id).toMatchObject({
+      type: "string",
+      format: "uuid",
+      description: expect.stringContaining(
+        "screen confirmation or supported server-verified spoken recording",
+      ),
+    });
+    expect(schema.properties?.quote_id).toHaveProperty(
+      "description",
+      expect.stringContaining("This tool cannot create approval"),
+    );
   });
   it("validates success outputs strictly at both root and nested levels", () => {
     const value = {

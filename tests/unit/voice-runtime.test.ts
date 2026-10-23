@@ -22,6 +22,8 @@ const mock = vi.hoisted(() => {
     audio: vi.fn(),
     interrupt: vi.fn(),
     userText: vi.fn(),
+    finishInput: vi.fn(),
+    finishSession: vi.fn(),
   };
   return {
     client,
@@ -40,6 +42,7 @@ const mock = vi.hoisted(() => {
     prepareVoiceConfirmation: vi.fn(),
     armVoiceConfirmation: vi.fn(),
     confirmVoiceOrder: vi.fn(),
+    recordVoiceApproval: vi.fn(),
     invalidateVoiceConfirmation: vi.fn(),
     openMcp: vi.fn<() => Promise<typeof client>>(),
     onEnd: vi.fn(),
@@ -98,6 +101,7 @@ vi.mock("@saygo/domain", async () => ({
   prepareVoiceConfirmation: mock.prepareVoiceConfirmation,
   armVoiceConfirmation: mock.armVoiceConfirmation,
   confirmVoiceOrder: mock.confirmVoiceOrder,
+  recordVoiceApproval: mock.recordVoiceApproval,
   invalidateVoiceConfirmation: mock.invalidateVoiceConfirmation,
   tool: mock.tool,
   staffAction: mock.staffAction,
@@ -155,7 +159,7 @@ async function connect(keepCapabilityFrame = false) {
   if (
     !keepCapabilityFrame &&
     socket?.send.mock.calls.length === 1 &&
-    String(socket.send.mock.calls[0][0]).includes('"confirmation_unavailable"')
+    String(socket.send.mock.calls[0][0]).includes('"confirmation_capability"')
   )
     socket.send.mockClear();
   return socket;
@@ -206,12 +210,11 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
-it("announces unavailable voice confirmation with the authenticated scope", async () => {
+it("announces sealed-recording confirmation with the authenticated scope", async () => {
   const socket = await connect(true);
   expect(JSON.parse(socket.send.mock.calls[0][0] as string)).toEqual({
-    type: "confirmation_unavailable",
-    code: "UNSUPPORTED_USER_TURN_BOUNDARY",
-    text: "Voice confirmation is unavailable with this provider. Stop voice and use Confirm order on the screen.",
+    type: "confirmation_capability",
+    mode: "sealed_recording",
     session_id: "voice-unit",
     epoch: 1,
     fence: 2,
@@ -245,9 +248,10 @@ it("never enables consent from a model review or final USER/ASSISTANT events", a
       stopReason: "END_TURN",
     });
   await flush();
-  expect(mock.prepareVoiceConfirmation).not.toHaveBeenCalled();
+  expect(mock.prepareVoiceConfirmation).toHaveBeenCalledOnce();
   expect(mock.armVoiceConfirmation).not.toHaveBeenCalled();
   expect(mock.confirmVoiceOrder).not.toHaveBeenCalled();
+  expect(mock.recordVoiceApproval).not.toHaveBeenCalled();
 });
 it("binds lease renewal, cleanup and consent invalidation to one connection UUID", async () => {
   await connect();

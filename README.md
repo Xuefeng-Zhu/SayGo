@@ -33,7 +33,7 @@ Each draft change shows a before/after receipt with **Undo last change**. Eligib
 
 **Ask staff** pauses automated ordering and voice so a crew member can edit the draft. Returning control requires the customer to restart voice or review the order. Accepted tickets cannot be undone. See [Undo and staff takeover](docs/undo-and-takeover.md).
 
-The example phrases are scripted and use the MCP server and persistent cart logic. Free-form speech requires [live voice](docs/voice.md#enable-live-voice). Stop voice before reviewing and confirming on screen. Spoken or typed affirmations and model replies cannot record customer approval on the current Nova connection.
+The example phrases are scripted and use the MCP server and persistent cart logic. Free-form speech requires [live voice](docs/voice.md#enable-live-voice). After a complete order readback, customers can use the [spoken approval recording](docs/voice.md#spoken-order-approval) or stop voice and confirm on screen. Typed text and model replies cannot record customer approval.
 
 | Page                                        | Use it to                                                            |
 | ------------------------------------------- | -------------------------------------------------------------------- |
@@ -55,13 +55,15 @@ pnpm build
 
 Unit tests need no database. Integration tests require DynamoDB Local on port 8000 and use the `saygo_test` namespace. Follow the [browser test instructions](docs/local-development.md#browser-tests) to run browser checks separately from your demo data. The same guide covers the webpack build fallback and optional MCP Inspector check.
 
+Watch the [2:59 submission video](https://www.youtube.com/watch?v=vc-iBxxVerc) for the problem, successful ordering demo and technical flow.
+
 ## Verification and limits
 
 Saved results apply to the source snapshots named in their receipts:
 
 - [Evaluation history](docs/evaluation.md): local checks, text-model results, failed runs and provider usage.
 - [Submission verification](docs/submission/verification.md): the selected source and its automated checks.
-- [Recorded demo](docs/submission/demo.md): a 1:46.672 recording with prerecorded Polly customer speech, fresh Nova 2 Sonic replies, screen confirmation and a local POS receipt. It predates the concise-response prompt.
+- [Recorded demo](docs/submission/demo.md): the current 2:59 film shows synthetic Polly Matthew customer speech, fresh Nova Tiffany replies, ten Voice tool types, sealed spoken approval and one $9.72 sandbox kitchen ticket using remote DynamoDB. Staff help is intentionally omitted.
 
 Physical microphone and speaker testing, noisy speech, intercom hardware and broad speech reliability remain unverified. Shared hosting, native Alexa+ integration, commercial POS systems and real payments require further work. Live voice and model evaluations incur AWS charges; additional paid trials require an approved scope and spending limit.
 

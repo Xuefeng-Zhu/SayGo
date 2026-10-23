@@ -6,6 +6,7 @@ import {
   armVoiceConfirmation,
   beginInteraction,
   confirmVoiceOrder,
+  recordVoiceApproval,
   getView,
   invalidateVoiceConfirmation,
   prepareVoiceConfirmation,
@@ -438,6 +439,58 @@ describe("trusted voice confirmation and durable sandbox ordering", () => {
       }),
     ).rejects.toMatchObject({ code: "CONSENT_ALREADY_RECORDED" });
     expect((await getView(scope)).voice_confirmation).toBeNull();
+    expect(await store.list("orders")).toHaveLength(0);
+    expect(await store.list("approvals")).toHaveLength(1);
+  });
+});
+
+describe("separate voice approval and actual MCP submission", () => {
+  it("stores one voice approval without an order, then permits one submit only after its lease ends", async () => {
+    const ready = await armed(),
+      proof = await evidence(ready.voice_confirmation!);
+    const approved = await recordVoiceApproval(scope, proof);
+    expect(approved.order).toBeNull();
+    expect(await store.list("orders")).toHaveLength(0);
+    expect(await store.list("jobs")).toHaveLength(0);
+    expect(await store.list("approvals")).toHaveLength(1);
+    expect((await store.list("approvals"))[0]).toMatchObject({
+      source: "voice",
+      consumed_at: null,
+    });
+    await recordVoiceApproval(scope, proof);
+    expect(await store.list("approvals")).toHaveLength(1);
+    const args = { quote_id: ready.quote!.id };
+    await expect(tool(scope, "submit_order", args)).rejects.toMatchObject({
+      code: "VOICE_PENDING",
+    });
+    await voiceLease(scope.session_id, null, connection);
+    const submitted = asView(await tool(scope, "submit_order", args));
+    expect(submitted.order?.status).toBe("submitted");
+    expect(asView(await tool(scope, "submit_order", args)).order?.id).toBe(
+      submitted.order?.id,
+    );
+    expect(await store.list("orders")).toHaveLength(1);
+    expect(await store.list("jobs")).toHaveLength(1);
+    expect((await store.list("approvals"))[0].consumed_at).not.toBeNull();
+  });
+  it("revokes unconsumed approval on disconnect before real submission", async () => {
+    const ready = await armed();
+    await recordVoiceApproval(scope, await evidence(ready.voice_confirmation!));
+    await voiceLease(scope.session_id, null, connection);
+    await invalidateVoiceConfirmation(scope, connection);
+    expect(await store.list("approvals")).toHaveLength(0);
+    await expect(
+      tool(scope, "submit_order", { quote_id: ready.quote!.id }),
+    ).rejects.toMatchObject({ code: "CONSENT_REQUIRED" });
+    expect(await store.list("orders")).toHaveLength(0);
+  });
+  it("rejects different evidence for an already approved voice quote", async () => {
+    const ready = await armed(),
+      proof = await evidence(ready.voice_confirmation!);
+    await recordVoiceApproval(scope, proof);
+    await expect(
+      recordVoiceApproval(scope, { ...proof, utterance_id: randomUUID() }),
+    ).rejects.toMatchObject({ code: "CONSENT_ALREADY_RECORDED" });
     expect(await store.list("orders")).toHaveLength(0);
     expect(await store.list("approvals")).toHaveLength(1);
   });

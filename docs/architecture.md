@@ -64,7 +64,7 @@ Draft changes save a receipt and one Undo snapshot when both selections can be p
 
 Screen approval uses the authenticated customer cookie. The route checks quote expiry, snapshot hash, cart/menu versions, ownership, unresolved choices and staff review. A database voice lease blocks screen approval until voice stops and queued work drains. The agent never receives the customer cookie.
 
-The current Nova adapter uses screen approval only. Its transcript fragments cannot establish a complete final customer utterance, so spoken approval remains disabled. The [voice-confirmation core](voice-confirmation.md) and controlled tests support a future adapter with complete speech evidence.
+[Spoken approval](voice-confirmation.md) uses a separate recording after the exact readback finishes. The gateway validates all transcript fragments through natural provider termination, records consent, releases the voice lease and executes the retained model `submit_order` request through MCP. Typed input, model prose and unfinished recordings cannot create that consent.
 
 Review creation uses a UUID scoped to session and actor, with an argument hash persisted on the quote. Identical retries return the same still-valid quote without renewing expiry or approval. Expired, changed or fenced reviews cannot be revived by replaying their request ID. A new review requires a new identity and fresh approval.
 
