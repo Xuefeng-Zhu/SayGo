@@ -1,5 +1,5 @@
 {
-  "verifiedAtUtc": "2026-10-23T15:28:06Z",
+  "verifiedAtUtc": "2026-10-23T15:35:57.151951+00:00",
   "submission": {
     "submission_id": 1255219,
     "status": "Submitted",
@@ -23,7 +23,7 @@
   ],
   "miniChallenges": {
     "awsBuilder": true,
-    "openSource": false
+    "openSource": true
   },
   "thumbnail": {
     "uploadHttpStatus": 200,
@@ -40,5 +40,42 @@
     29056,
     28301
   ],
-  "verificationSource": "Live Devpost API submission/project state verified by the submitting session; private raw receipt retained by the owner."
+  "verificationSource": "Live Devpost API submission/project state verified by the submitting session; private raw receipt retained by the owner.",
+  "initialSubmissionSnapshot": {
+    "verifiedAtUtc": "2026-10-23T15:28:06Z",
+    "submitted_at": "2026-10-23T11:27:56.582-04:00",
+    "miniChallenges": {
+      "awsBuilder": true,
+      "openSource": false
+    },
+    "meaning": "Initial submitted state before the later Open Source Mini Challenge amendment."
+  },
+  "amendments": [
+    {
+      "verifiedAtUtc": "2026-10-23T15:35:57.151951+00:00",
+      "type": "Open Source Mini Challenge entry",
+      "submissionId": 1255219,
+      "projectSlug": "saygo-q2o7f4",
+      "status": "Submitted",
+      "updatedFieldIds": [
+        28295,
+        28296,
+        28297,
+        28298,
+        28299
+      ],
+      "openSource": "Yes",
+      "contributionUrl": "https://github.com/Xuefeng-Zhu/SayGo/commit/42e8d43f64934da1506af6993d7a1e160d65cb48",
+      "repositoryUrl": "https://github.com/Xuefeng-Zhu/SayGo",
+      "githubUsername": "Xuefeng-Zhu",
+      "description": "I contributed a sealed spoken-approval coordinator to the existing public, MIT-licensed SayGo repository, published on October 23, 2026 in commit 42e8d43. It binds fresh customer audio to the exact quote, cart, session and connection; checks completed readback and natural provider termination; and releases the retained MCP submission only after explicit approval passes server checks.\n\nThe change adds browser PCM/playback boundaries and unit, integration and browser regression tests for partial or negative utterances, expiry, interruption and stale state. It integrates with SayGo's existing MCP/DynamoDB ordering workflow. This helps developers separate conversational tool requests from customer consent before consequential actions, with an inspectable, tested implementation they can reuse under the MIT license.",
+      "updatedFieldsVerified": 5,
+      "otherSavedAnswersUnchanged": 25,
+      "primaryTrack": [
+        "Alexa+"
+      ],
+      "awsBuilder": "Yes",
+      "verificationSource": "Devpost MCP update succeeded; live form readback matched all five updated values and confirmed 25 other saved answers unchanged."
+    }
+  ]
 }

@@ -1,5 +1,5 @@
 {
-  "preparedAtUtc": "2026-10-23T15:30:40.121181+00:00",
+  "preparedAtUtc": "2026-10-23T15:37:32.181354+00:00",
   "baseHead": "42e8d43f64934da1506af6993d7a1e160d65cb48",
   "scope": "Proposed current publication bytes: tracked and required nonignored source/docs/assets; excludes self to avoid recursive hashing, generated next-env, output, ignored raw media/config/dependencies and owned metadata.",
   "recordedSource": {
@@ -85,7 +85,7 @@
     "apps/worker/package.json": "c51a66df2f94c2089c806c93cd8bb48efd3b44ac07adb593222ede026baa4071",
     "apps/worker/src/index.ts": "05c22c384f0b7af25915409ac84c32fcc9063d8e404811e5f0e6b996ac181b0d",
     "compose.yaml": "0188076d2ec4d859d71545da85b62e97782fd6d872010f846589d28f470dfba6",
-    "devpost-submission.md": "3ab5975b9c3e79b80713acd8aba2ce0caf59fe6c123398cbe28ec576601f6bcf",
+    "devpost-submission.md": "3e95f43ed269f3194188f43317ff7a741631c9ad7306a1c1c3a377f58ea2c115",
     "docs/architecture.md": "0ed05dc237ba0313db422bf58c03aa77c4d29bd0c7f68e048f2205dd5bb9f2f6",
     "docs/customer-mcp-log.md": "cbaaf215fc7720ffa423af9110a10dd15e84c27b40102bfdc18823f65ca98a64",
     "docs/demo-and-submission.md": "0b891c695c77d1814c59d7d483d9254940f8316be9691ebe570ff33e392db70a",
@@ -154,7 +154,7 @@
     "docs/sdk-friction.md": "eaeb5b8af5a67bb8b9d122f2c59ffb9e8279bf1781ac8beef797182e9d398a7f",
     "docs/security-privacy.md": "d14410fca40b726ebbb077742981236d47e8fa3a60e24bf30c15fcc7c59d5918",
     "docs/submission/demo.md": "dd50339b0d6ee12a69f99631830df9e6ef5f02d68e039e4a046b3a008310387c",
-    "docs/submission/devpost-form-answers.md": "41958692cb8e35ca59684a2dd274ba6d2ef51354091aa874d4f7d2b00c4c43c8",
+    "docs/submission/devpost-form-answers.md": "2594bd6f2416d32b7d615485dc7b5023bfd9f81bd51edbadf9e77ab2ad447627",
     "docs/submission/friction-log.md": "cc1b99eadcc74ea1af7cbdd497dc2cf447e7b245ed020c258dba74ca78325895",
     "docs/submission/project-story.md": "f6220088fb927b7d0f96fe42c2650cec4d483950abf63044f6d8051593829fbc",
     "docs/submission/recorded-source-manifest.json": "44381f873cf47253a679c12e972e45106019d17712da6157aac49d7c062fcde3",
@@ -163,8 +163,8 @@
     "docs/submission/screenshots/kitchen.png": "23808748e12d684fcbb9749262ea08ce1caff02b5a69bb6f2c017eba55208dc8",
     "docs/submission/screenshots/screen-review.png": "08d9b1ba3f50c6777ed9c66f63991c71f1c926ef69daac179e175009f7ef0523",
     "docs/submission/screenshots/voice-order.png": "ef6c28eab00ff350f3e56432891773b1dd9f243de4daabac59dae4b9d6fca2a8",
-    "docs/submission/submission-checklist.md": "d5d7b053d9446f520cd8382abf7c4e882ef63d57ce6129d1a58cd59d37a020e1",
-    "docs/submission/submission-receipt.json": "0e87181b1aeeaaad0ebe01e26521ad87e5ade9674cea632f47511224ac63698e",
+    "docs/submission/submission-checklist.md": "42fef0efaafc6de72b28006217e8ac85289eb6c7507834dd6e9b91ff5164eca6",
+    "docs/submission/submission-receipt.json": "e4ee976d75f0d93ee40b3db0f1c56a4a6c9d83b37fd7fb538e4bbf8e77334f3e",
     "docs/submission/verification-summary.json": "2f625fbfcad0c251d5da632b48e272236ddf5f954f17be4295537b69e33a21fb",
     "docs/submission/verification.md": "fef85eb3dc40f086c86777e7dd174c1dc71cd5f2e0a7fdc7701924beced4c4a3",
     "docs/undo-and-takeover.md": "df8f86210a9ae71a272409cb6aaaa31e418d54835e12a8d1ca661cb6da3408be",
@@ -265,6 +265,19 @@
       "docs/submission/submission-receipt.json"
     ],
     "publicProject": "https://devpost.com/software/saygo-q2o7f4",
+    "submissionStatus": "Submitted"
+  },
+  "openSourceStatusDocumentation": {
+    "verifiedAtUtc": "2026-10-23T15:35:57.151951+00:00",
+    "implementationCommit": "42e8d43f64934da1506af6993d7a1e160d65cb48",
+    "applicationRuntimeStoryAndTestsUnchanged": true,
+    "files": [
+      "devpost-submission.md",
+      "docs/submission/devpost-form-answers.md",
+      "docs/submission/submission-checklist.md",
+      "docs/submission/submission-receipt.json"
+    ],
+    "openSourceMiniChallenge": true,
     "submissionStatus": "Submitted"
   }
 }

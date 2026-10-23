@@ -18,11 +18,11 @@ Review the technical drafts before using them. Preserve the entrant's saved pers
 | 28292       | Existing-project updates                             | Not used because the saved choice is **New**.                                                                                                                                                                           |
 | 28293       | AWS Builder Mini Challenge?                          | Saved: **Yes**.                                                                                                                                                                                                                                     |
 | 28294       | AWS services incorporated and how                    | Use the technical answer below. This textarea is marked required.                                                                                                                                                                                                  |
-| 28295       | Open Source Mini Challenge?                          | Saved: **No**. No additional Open Source mini-challenge contribution is claimed.                                                                  |
-| 28296       | Open Source contribution URL                         | Leave blank if not entering; otherwise supply an actual qualifying URL.                                                                                                                                                                                            |
-| 28297       | Open Source project repository URL                   | Conditional on entering; supply the qualifying public repository.                                                                                                                                                                                                  |
-| 28298       | Open Source GitHub username                          | Conditional on entering; owner confirms the contributor account.                                                                                                                                                                                                   |
-| 28299       | Open Source contribution description                 | Conditional on entering; describe the actual additional work.                                                                                                                                                                                                      |
+| 28295       | Open Source Mini Challenge?                          | Saved and verified: **Yes**; existing-public-repository contribution route. |
+| 28296       | Open Source contribution URL                         | [Sealed spoken-approval contribution](https://github.com/Xuefeng-Zhu/SayGo/commit/42e8d43f64934da1506af6993d7a1e160d65cb48). |
+| 28297       | Open Source project repository URL                   | [Xuefeng-Zhu/SayGo](https://github.com/Xuefeng-Zhu/SayGo), public and MIT-licensed. |
+| 28298       | Open Source GitHub username                          | Xuefeng-Zhu. |
+| 28299       | Open Source contribution description                 | Exact saved contribution description below. |
 | 28300       | Optional Feature Requests                            | Draft suggestions below; owner may omit.                                                                                                                                                                                                                           |
 | 28301       | Optional Friction Log URL                            | Proposed: [friction log](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md); verify public access before using it.                                                                                                                    |
 | 28302       | Optional Project Testing Link                        | No hosted application URL verified. Local instructions are provided instead.                                                                                                                                                                                       |
@@ -36,6 +36,14 @@ Review the technical drafts before using them. Preserve the entrant's saved pers
 | 29058       | Career AI value                                      | Saved: **Yes**.                                                                                                                                                                                                                                               |
 
 **Required video deliverable, outside the above custom fields:** [Public 179-second YouTube video](https://www.youtube.com/watch?v=vc-iBxxVerc), publication/watch page verified October 23. Final Devpost submission remains a separate action.
+
+## 28299 — Open Source contribution description
+
+Saved and verified October 23, 2026. The following text matches the live submission field exactly:
+
+I contributed a sealed spoken-approval coordinator to the existing public, MIT-licensed SayGo repository, published on October 23, 2026 in commit 42e8d43. It binds fresh customer audio to the exact quote, cart, session and connection; checks completed readback and natural provider termination; and releases the retained MCP submission only after explicit approval passes server checks.
+
+The change adds browser PCM/playback boundaries and unit, integration and browser regression tests for partial or negative utterances, expiry, interruption and stale state. It integrates with SayGo's existing MCP/DynamoDB ordering workflow. This helps developers separate conversational tool requests from customer consent before consequential actions, with an inspectable, tested implementation they can reuse under the MIT license.
 
 ## 28294 — AWS services incorporated and how
 
