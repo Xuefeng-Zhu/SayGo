@@ -16,19 +16,18 @@ For judging, explicitly select local storage before migration, seed and startup:
 
 ## Run locally
 
-Requires Node 22.12+ (verified on 24), pnpm 11.25.0, and Docker/OrbStack. Start OrbStack or your Docker engine first. A [Java 17+ alternative](docs/local-development.md#use-java-instead-of-docker) is also available.
+Requires Node 22.12+ (verified on 24), pnpm 11.25.0, network access and AWS credentials authorized for the existing DynamoDB development table. The app runs on your computer and uses AWS DynamoDB by default: table `SayGo` in `us-west-2`, namespace `saygo_demo`. Docker and Java are optional for [offline storage and isolated tests](docs/local-development.md#offline-storage).
 
 From the repository root:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm infra:up
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-A fresh checkout needs no API key or `.env` for fixture mode. If you already have a root `.env`, its settings apply; use the [local configuration overrides](docs/local-development.md#configuration) when switching back from AWS or live voice.
+Select your existing AWS profile or role through the normal AWS credential chain before running database commands. A root `.env` can hold `AWS_PROFILE` and configuration overrides; see [.env.example](.env.example) and [local configuration](docs/local-development.md#configuration). Keep `DYNAMODB_ENDPOINT` empty for AWS. `db:migrate` validates the existing table and requires a separate explicit opt-in to create a missing AWS table. `db:seed` inserts missing fictional development data while preserving existing records. Fixture voice makes no Bedrock calls; AWS storage still requires authentication and network access.
 
 Open [the order board](http://localhost:3100/lane/lane-1), sign in as **admin** with **harbor-demo-only**, and choose **Begin customer session**. The local `crew` and `kitchen` accounts use the same password with narrower permissions. See [local development](docs/local-development.md) for ports, configuration, shutdown and troubleshooting.
 

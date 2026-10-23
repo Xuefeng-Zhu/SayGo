@@ -4,12 +4,12 @@ const schema = z.object({
   DYNAMODB_TABLE: z
     .string()
     .regex(/^[A-Za-z0-9_.-]{3,255}$/)
-    .default("saygo-local"),
+    .default("SayGo"),
   DYNAMODB_NAMESPACE: z
     .string()
     .regex(/^[A-Za-z0-9_-]{1,80}$/)
     .default("saygo_demo"),
-  DYNAMODB_ENDPOINT: z.string().default("http://127.0.0.1:8000"),
+  DYNAMODB_ENDPOINT: z.string().default(""),
   SAYGO_DEMO: z.enum(["true", "false"]).default("true"),
   SAYGO_WEB_ORIGIN: z.string().url().default("http://localhost:3100"),
   SAYGO_RUNTIME_PORT: z.coerce

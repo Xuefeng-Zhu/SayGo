@@ -1,31 +1,33 @@
 # Local development
 
-Run commands from the repository root. This guide describes the fictional, no-provider demo; [AWS storage](dynamodb.md), [live voice](voice.md#enable-live-voice) and [paid text evaluation](model-improvements.md#run-an-authorized-text-evaluation) have separate setup.
+Run commands from the repository root. The web app, runtime and worker run on your computer and use remote AWS DynamoDB by default. This guide describes the fictional demo with fixture voice; it makes no Bedrock calls. [AWS storage](dynamodb.md), [live voice](voice.md#enable-live-voice) and [paid text evaluation](model-improvements.md#run-an-authorized-text-evaluation) describe those services in more detail.
 
 ## Prerequisites and first run
 
 - Node **22.12+**; saved development checkpoints used Node 24.
 - **pnpm 11.25.0**, matching `packageManager` in [package.json](../package.json).
-- A running Docker engine, such as OrbStack, or [Java 17+](#use-java-instead-of-docker).
+- Network access and an existing AWS profile or role authorized for the DynamoDB development table.
+- An existing DynamoDB table with string `pk` and `sk` keys. Defaults are table `SayGo`, region `us-west-2`, namespace `saygo_demo`; select the intended development table and account before running database commands.
+
+Configure the normal AWS credential chain, such as your existing `AWS_PROFILE`, in your shell or ignored root `.env`. Keep `DYNAMODB_ENDPOINT` empty for AWS. Docker and Java are unnecessary for this development path; they are optional for [offline storage and isolated tests](#offline-storage).
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm infra:up
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
 
-`db:migrate` creates or validates the DynamoDB table. `db:seed` inserts missing fictional restaurant, menu and staff records; it preserves existing records. Re-running the seed does not reset changed prices, stock or existing staff passwords.
+`db:migrate` validates the existing DynamoDB table's `pk`/`sk` schema. It refuses to create a missing AWS table unless `SAYGO_CREATE_AWS_TABLE=true` is explicitly set. `db:seed` inserts missing fictional restaurant, menu and staff records into the selected namespace; it preserves existing records. Re-running the seed does not reset changed prices, stock or existing staff passwords.
 
-Open [the order board](http://localhost:3100/lane/lane-1), sign in with `admin` / `harbor-demo-only`, and begin a customer session. The `crew` and `kitchen` usernames use the same initial password with their respective permissions. These are defaults for newly seeded local data.
+Open [the order board](http://localhost:3100/lane/lane-1), sign in with `admin` / `harbor-demo-only`, and begin a customer session. The `crew` and `kitchen` usernames use the same initial password with their respective permissions. These are defaults for newly seeded fictional development data.
 
 | Process         | Default address         | Purpose                                                      |
 | --------------- | ----------------------- | ------------------------------------------------------------ |
 | Next.js web app | `http://localhost:3100` | Lane, crew, kitchen, administration and demo controls.       |
 | Node runtime    | `http://localhost:3101` | HTTP API, `/mcp`, `/voice` and `/health`; binds to loopback. |
 | Worker          | No listening port       | Polls durable POS jobs and performs retention cleanup.       |
-| DynamoDB Local  | `http://127.0.0.1:8000` | Persistent local table shared by isolated namespaces.        |
+| AWS DynamoDB    | AWS service in `us-west-2` | Remote development storage; uses the selected AWS credentials. |
 
 `pnpm dev` starts web, runtime and worker together. Check runtime/database connectivity with:
 
@@ -37,23 +39,45 @@ A healthy fixture runtime returns `{"ok":true,"pos":"sandbox","voice":false}`. T
 
 ## Configuration
 
-Defaults are defined in [packages/db/src/config.ts](../packages/db/src/config.ts); the web app loads the repository-root `.env` through [next.config.mjs](../apps/web/next.config.mjs). Runtime/worker commands load `.env` from the current directory, so run them from the repository root. Exported shell variables take precedence over `.env` values. A root `.env` is optional; [.env.example](../.env.example) contains the local defaults. Keep private credentials in ignored configuration.
+Defaults are defined in [packages/db/src/config.ts](../packages/db/src/config.ts); the web app loads the repository-root `.env` through [next.config.mjs](../apps/web/next.config.mjs). Runtime/worker commands load `.env` from the current directory, so run them from the repository root. Exported shell variables take precedence over `.env` values. A root `.env` is optional when the intended AWS credentials and settings are already available through your shell or role; [.env.example](../.env.example) contains the development defaults. Keep private credentials in ignored configuration.
 
 | Setting                | Default                            | Use                                                                                                                |
 | ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `DYNAMODB_ENDPOINT`    | `http://127.0.0.1:8000`            | Only uncredentialed loopback HTTP endpoints are accepted. An explicitly empty value selects AWS.                   |
-| `DYNAMODB_TABLE`       | `saygo-local`                      | Table created/validated by `db:migrate`.                                                                           |
+| `DYNAMODB_ENDPOINT`    | Empty                              | Uses AWS DynamoDB. An explicit uncredentialed loopback HTTP URL selects DynamoDB Local.                            |
+| `DYNAMODB_TABLE`       | `SayGo`                            | Existing development table validated by `db:migrate`.                                                             |
 | `DYNAMODB_NAMESPACE`   | `saygo_demo`                       | Data partition within the table. Switching namespaces selects a different dataset.                                 |
 | `SAYGO_DEMO`           | `true`                             | Required by the fictional seed and demo reset.                                                                     |
 | `SAYGO_WEB_ORIGIN`     | `http://localhost:3100`            | Exact allowed browser origin, including port. Use `localhost` consistently in the browser.                         |
 | `SAYGO_RUNTIME_PORT`   | `3101`                             | Runtime listener and web API proxy target. Changing this does not change the web port.                             |
 | `SAYGO_STAFF_PASSWORD` | `harbor-demo-only`                 | Password used when seeding missing staff accounts. Existing hashes are preserved.                                  |
 | `SAYGO_TOKEN_SECRET`   | Local demo value in `.env.example` | Signs server-side credentials. Private values of at least 32 characters are required before shared/production use. |
-| `SAYGO_VOICE_ENABLED`  | `false`                            | Explicit opt-in to paid live voice. Fixture mode needs no AWS credentials.                                         |
+| `SAYGO_VOICE_ENABLED`  | `false`                            | Explicit opt-in to paid live voice. Fixture voice makes no Bedrock calls; AWS storage still needs credentials.      |
 | `AWS_REGION`           | `us-west-2`                        | AWS region for DynamoDB and Bedrock.                                                                               |
+| `AWS_PROFILE`          | AWS credential chain               | Select an existing authorized profile, or use another supported credential source such as a role.                 |
 | `SAYGO_VOICE_MODEL`    | `amazon.nova-2-sonic-v1:0`         | Bedrock voice model when enabled.                                                                                  |
 
-If your root `.env` already selects AWS or live voice, run this in a dedicated terminal **before** migrate, seed and dev to select local fixture mode:
+If your root `.env` still selects DynamoDB Local, update its endpoint to empty and table to the intended AWS development table, or run this in a dedicated terminal **before** migrate, seed and dev:
+
+```sh
+export DYNAMODB_ENDPOINT=''
+export DYNAMODB_TABLE=SayGo
+export DYNAMODB_NAMESPACE=saygo_demo
+export AWS_REGION=us-west-2
+export SAYGO_DEMO=true
+export SAYGO_WEB_ORIGIN=http://localhost:3100
+export SAYGO_RUNTIME_PORT=3101
+export SAYGO_VOICE_ENABLED=false
+```
+
+Restart app processes after configuration changes. The web API proxy is configured when Next.js starts/builds. Changing `.env` and re-seeding does not rotate existing passwords. To seed different credentials for a separate demo, select a fresh namespace; the current staff administration screen manages access, not passwords.
+
+## Stop and restart
+
+Press Ctrl-C in the `pnpm dev` terminal to stop web, runtime and worker. Remote DynamoDB remains available; restart the app with `pnpm dev`. Migrations and seed can be repeated safely. Demo controls provide an explicit reset of fictional interactions/tickets in the selected namespace while preserving menu/staff settings.
+
+## Offline storage
+
+DynamoDB Local runs on your computer and is optional for offline development and isolated integration/browser tests. Select its endpoint and table explicitly so database commands do not use the AWS defaults. In a dedicated terminal, export these settings **before** migrate, seed and dev:
 
 ```sh
 export DYNAMODB_ENDPOINT=http://127.0.0.1:8000
@@ -65,17 +89,7 @@ export SAYGO_RUNTIME_PORT=3101
 export SAYGO_VOICE_ENABLED=false
 ```
 
-Restart app processes after configuration changes. The web API proxy is configured when Next.js starts/builds. Changing `.env` and re-seeding does not rotate existing passwords. To seed different credentials for a separate demo, select a fresh namespace; the current staff administration screen manages access, not passwords.
-
-## Stop and restart
-
-Press Ctrl-C in the `pnpm dev` terminal to stop web, runtime and worker. Then stop Docker-backed storage with:
-
-```sh
-pnpm infra:down
-```
-
-This stops Compose services and preserves the named DynamoDB volume. Restart storage with `pnpm infra:up`; migrations and seed can be repeated safely. Demo controls provide an explicit reset of fictional interactions/tickets while preserving menu/staff settings.
+Start a Docker engine such as OrbStack, then run `pnpm infra:up`, `pnpm db:migrate`, `pnpm db:seed` and `pnpm dev`. `pnpm infra:down` stops Compose storage and preserves its named DynamoDB volume; `pnpm infra:up` restarts it. DynamoDB Local needs no AWS credentials. Initial dependency and DynamoDB Local downloads need network access.
 
 ### Use Java instead of Docker
 
@@ -85,11 +99,11 @@ With Java 17+, `curl` and `tar` installed, run this in a separate terminal:
 pnpm infra:local
 ```
 
-The helper downloads DynamoDB Local on first use, validates its SHA-256 checksum, and serves port 8000. It keeps files and persistent data in ignored `.local/dynamodb/`. Leave that terminal open while running migrate, seed and dev in another terminal. Ctrl-C stops Java; `pnpm infra:down` controls Docker services only.
+The helper downloads DynamoDB Local on first use, validates its SHA-256 checksum, and serves port 8000. It keeps files and persistent data in ignored `.local/dynamodb/`. Leave that terminal open while running migrate, seed and dev in the terminal with the explicit local settings above. Ctrl-C stops Java; `pnpm infra:down` controls Docker services only.
 
 Choose either Docker or Java for port 8000. Their storage locations are separate, so switching between them does not carry over your demo data.
 
-## Checks without provider calls
+## Checks without Bedrock calls
 
 | Command                 | Requirements and effects                                                                                                                                                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -151,8 +165,10 @@ This is a fallback recipe. Its success would not establish that the default `pnp
 
 | Symptom                                                         | Check or action                                                                                                                                                                  |
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Docker socket unavailable                                       | Start OrbStack/your Docker engine, then retry `pnpm infra:up`; or use Java.                                                                                                      |
-| Database connection refused                                     | Start one local storage backend; confirm port 8000 and the effective `DYNAMODB_ENDPOINT`.                                                                                        |
+| AWS credentials missing or expired                              | Select the intended existing AWS profile or role and refresh its login if needed. AWS storage requires credentials even with fixture voice.                                    |
+| AWS table unavailable                                           | Confirm network access, account, region and table. Run `pnpm db:migrate` to validate the existing table; missing AWS tables are not created by default.                           |
+| Docker socket unavailable during offline/test setup              | Start OrbStack/your Docker engine, then retry `pnpm infra:up`; or use Java. Normal development with AWS needs neither.                                                            |
+| Local database connection refused                               | Start one local storage backend; confirm port 8000 and the explicit loopback `DYNAMODB_ENDPOINT`.                                                                                |
 | Missing table/menu/login                                        | Run migrate then seed in the same terminal/configuration as the runtime. A new namespace needs its own seed.                                                                     |
 | Seed does not restore menu/password                             | It preserves existing data. Use Menu & staff for menu edits; the configured password affects newly seeded accounts only. Demo reset preserves these settings.                    |
 | `Host not allowed`, `Origin not allowed` or same-origin failure | Open the configured `SAYGO_WEB_ORIGIN` exactly and restart after changing ports. `127.0.0.1:3100` differs from `localhost:3100`. Cookie-authenticated POSTs require that Origin. |
