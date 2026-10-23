@@ -1,10 +1,10 @@
-# SayGo — verification scope
+# SayGo — verification record, October 21, 2026
 
-This summary separates the source selected for publication from older live and regression evidence. It does not establish production reliability or completion of the Devpost entry.
+Each checkpoint below identifies the tested source and what it covers. Later source changes need their own verification record.
 
-## Fresh selected-source checks — October 21, 2026
+## Source selected for publication — October 21, 2026
 
-The isolated test copy contained base commit `7cb44f47fc40bbe9e43945c83a6238dc0a11e7bf` plus the concise-prompt change in `packages/integrations/src/nova.ts` and its new `tests/unit/voice-delivery.test.ts`. Unrelated local AWS-default configuration/setup changes and generated `next-env` changes were excluded. The publication source retains DynamoDB Local as its default.
+The isolated test copy contained base commit `7cb44f47fc40bbe9e43945c83a6238dc0a11e7bf` plus the concise-prompt change in `packages/integrations/src/nova.ts` and its new `tests/unit/voice-delivery.test.ts`. Unrelated local AWS-default configuration/setup changes and generated `next-env` changes were excluded. That snapshot used DynamoDB Local by default. The current checkout defaults to AWS; [reviewer setup](reviewer-instructions.md) explicitly selects local storage.
 
 | Check                                           | Result                                                          |
 | ----------------------------------------------- | --------------------------------------------------------------- |
@@ -15,9 +15,9 @@ The isolated test copy contained base commit `7cb44f47fc40bbe9e43945c83a6238dc0a
 | Runtime and worker build, tsup                  | Passed                                                          |
 | New inference/synthesis requests                | **None**                                                        |
 
-The final unit run used an authorized ephemeral loopback mock server. An earlier sandbox bind restriction was an execution-environment obstacle, not a product failure. The default Turbopack build is not claimed as passing; the successful web build used webpack.
+The final unit run used an ephemeral loopback mock server after an earlier sandbox port-binding restriction. The successful web build used webpack; the default Turbopack build did not pass in that environment.
 
-The new tests inspect the prompt's response policy and preservation of complete error/safety captions. They do not establish that the model now speaks more briefly. The existing AWS session was expired, and no new live inference was performed.
+The two new tests inspect the prompt's response policy and preservation of complete error/safety captions. They do not establish that the model now speaks more briefly. The existing AWS session was expired, and no new live inference was performed.
 
 ## Older evidence with separate source scope
 
@@ -25,10 +25,10 @@ The new tests inspect the prompt's response policy and preservation of complete 
 - **Selected recorded demo:** one fresh Nova 2 Sonic session, 21 flow assertions, one screen-approved **$9.72** order, one approval and one SandboxPos receipt. The 106.672-second movie predates the concise-prompt change. See [demo provenance](demo.md).
 - **Recorded media checks:** decoding, subtitle timing, waveform provenance/synchronization and browser playback passed. No perceptual listening or physical microphone test is claimed.
 
-The recording's working tree includes local changes and explicit local test overrides. A base commit alone does not identify every recorded byte. Raw source fingerprints and recording receipts remain in owner QA artifacts; reviewers do not need private machine paths to use the published setup instructions.
+The recording used local changes and explicit test settings in addition to its base commit. Saved source hashes identify those changes. Full recording receipts remain with the owner; the repository includes a portable [summary](verification-summary.json).
 
 ## What still needs verification
 
-A fresh clone should be checked against [reviewer instructions](reviewer-instructions.md) after publication. A clean-machine installation, the concise prompt's actual live reply length, human/noisy speech, intercom acoustics and commercial POS behavior have not been established. No new concise replacement movie exists.
+Remaining checks include a fresh-clone installation, the concise prompt's effect on live reply length, human speech, noisy intercoms and commercial POS behavior. Follow the [reviewer instructions](reviewer-instructions.md) for local setup. The saved video predates the prompt change.
 
-The [machine-readable summary](verification-summary.json) records these same boundaries. [Submission checklist](submission-checklist.md) tracks published-license verification, the public video and owner-answer requirements.
+The [machine-readable summary](verification-summary.json) records the same checkpoints. [Submission checklist](submission-checklist.md) tracks published-license verification, the public video and owner-answer requirements.

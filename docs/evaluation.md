@@ -1,16 +1,16 @@
 # Evaluation and evidence
 
-## Reading this evidence
+## How to use this record
 
-The sections below are dated checkpoints. Older tool-count, test-count, provider and publication statements describe their checkpoint only. The newest live text-model verification is the final October 14 follow-up below (October 15 UTC). The October 20 publication checks verify the model fixes together with the subsequently committed draft-order features locally.
+This page records October 10–20, 2026 test runs. Counts, source hashes, provider access and publication status describe the date of each run. The final text-model suites ran on October 14 (October 15 UTC); October 20 checks covered the model fixes together with later draft-order features. For October 21 source checks and the later recording, see [submission verification](submission/verification.md) and [demo provenance](submission/demo.md).
 
-For current commands, use [local development and software verification](local-development.md) or [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Historical results and spending approvals are evidence of those runs, not authorization for new provider calls.
+Use [local development](local-development.md) for current commands and [text evaluation](model-improvements.md#run-an-authorized-text-evaluation) for the paid test procedure. Historical spending approvals do not authorize new provider calls.
 
 ## Pre-publication local checks — October 20, 2026
 
 The model fixes were checked on top of `118eef4`, which adds correction receipts and equivalent meal savings under MCP contract 0.5 with eleven tools. **124 unit tests and 61 DynamoDB/HTTP MCP integration tests passed**, with one optional Inspector check skipped. Lint and strict typecheck passed. No provider calls were made, and browser/build/Sonic checks were not rerun. The temporary in-memory database stopped and ports 8000/3111 were released. [Local-check receipt and source hashes](evidence/model-fix-prepush-20261020.json).
 
-The original and generalization 10/10 live results below remain tied to their preserved October 14 source snapshot. These fresh local checks establish compatibility with the committed draft-order features; they do not extend the historical live-model results to a different implementation hash.
+The original and generalization 10/10 live results below remain tied to their preserved October 14 source snapshot. These local checks covered the combined source. The live-model results still apply only to the October 14 implementation hash.
 
 ## Final text-model fix — October 14, 2026
 
@@ -39,13 +39,13 @@ During this follow-up, **101 unit tests and 49 DynamoDB/HTTP MCP integration tes
 
 The two text-only approvals totaled **$1.50**. Reported usage totals **$0.798272640**, with **$0 pending** in those ledgers. The old approval's $0.25 unknown voice-outcome reservation remains separate and unchanged. Rates were rechecked against the October 14 AWS regional catalog; these are token-based estimates, not invoice verification or a billing-enforced cap. Paid testing stopped; the owned in-memory DynamoDB process stopped and ports 8000/3113 were verified released. [Consolidated verification, checks, unchanged-file hashes and budget receipt](evidence/model-fix-verification-20261014.json).
 
-These are two bounded development runs, not a statistical reliability estimate. The additional questions have informed the fixes and are no longer an unseen holdout. Full-suite success resolves the recorded text cases; physical speech, production acceptance and broader model reliability remain separate validation work.
+These two runs cover fixed development questions. Because the additional questions informed the fixes, they no longer serve as an unseen holdout. Physical speech, production behavior and broader model reliability need separate testing.
 
 ## Recorded local demo — October 14, 2026
 
 The [preserved recording receipt](evidence/demo-recording-20261014.json) documents a 156.159-second, 1920×1080 captioned MP4 from source `2d8b000`. Scripted inputs traversed real MCP, isolated in-memory DynamoDB Local and the local POS sandbox; narration used offline macOS TTS. It verified the $18.09 correction, customer review/confirmation, accepted kitchen ticket, next-customer isolation and staff takeover. The recording made zero provider calls and used no physical microphone or speakers. Full media decode, H.264/AAC, embedded English captions and reviewed frames are recorded in the original receipt; the file's metadata and hash were checked during this documentation update.
 
-The video describes the separate synthetic Sonic trial below. It does not show live acoustic speech or establish spoken-price accuracy. It remains local and unpublished; [recording location and submission handoff](demo-and-submission.md). The original media and receipt in `output/` were preserved.
+The video describes the separate synthetic Sonic trial below; it does not show physical microphone input or establish spoken-price accuracy. At this checkpoint it was local and unpublished. See the [historical recording details](demo-and-submission.md). The original media and receipt in `output/` were preserved.
 
 ## Earlier signed-in live checkpoint — October 14, 2026
 
@@ -63,13 +63,13 @@ Focused probes explicitly report `fullSuite:false`; they must not be added to ea
 
 The successful voice flow used offline TTS, a verified software MediaStream override, muted fake-device Chromium, production AudioWorklet/WebSocket code and real provider tools. It added the requested order, resized the existing drink without replacing line IDs, checked exact $9.50 subtotal/$10.26 fixture total, received the final 50-cent comparison caption and nonempty PCM, disabled review during speech, and stopped/cleared the lease on staff takeover without consent or submission. The caption is provider-generated transcription, not an independent acoustic assessment. Physical microphones/speakers, Safari, noisy outdoor speech, echo and acoustic barge-in remain untested. The passing run had no interruption signals; failed earlier trials did observe them.
 
-Live failures informed fixes for faster-than-real-time playback (still bounded to 30 seconds/512 sources), direct edits versus price inquiries, valid request-UUID recovery, and new-content audio resumption after interruption. The MCP-builder and frontend-debugging guides informed actionable errors, strict contracts, preserved failure evidence and rendered validation. [Voice details](voice.md), [source manifest](evidence/live-voice-i-source-manifest.json), [usage reconciliation](evidence/provider-budget-reconciliation-20261014.json).
+Live failures informed fixes for faster-than-real-time playback (still bounded to 30 seconds/512 sources), direct edits versus price inquiries, valid request-UUID recovery, and new-content audio resumption after interruption. [Voice details](voice.md), [source manifest](evidence/live-voice-i-source-manifest.json), [usage reconciliation](evidence/provider-budget-reconciliation-20261014.json).
 
 Verification at this earlier checkpoint: **68 unit, 50 DynamoDB/MCP/Inspector integration and 4 Chromium browser tests pass**. Lint, strict typecheck and whitespace checks pass. The optimized Next.js production build passes using supported webpack mode, and runtime/worker compilation passes. The default Turbopack build repeatedly failed because its CSS worker could not bind a port (`EPERM`), including after an escalated retry; this is preserved as an environment/build-path limitation, not reported as a passing default build. No source dependency/bundler default was changed.
 
 Frontend QA used `http://localhost:3120/lane/lane-1`, Chromium 1536×1024, and the existing Playwright workflow because the Browser plugin/skill was unavailable. Page identity, meaningful content, no framework overlay, zero relevant console/page errors, rendered screenshot and voice/staff interaction checks passed. Screenshots are outside the repo in the receipt's `visualDirectory`; browser regression screenshots are under `/private/tmp/saygo-frontend-qa-Z2N1KE`.
 
-The newly approved $1 uses a durable shared text/voice ledger and application-level reservation guards, separate from historical $0.786320 usage. An uncertain early voice attempt retains $0.25 rather than being silently discarded. [Current verified rates](evidence/provider-pricing-20261013.json) are unchanged. Usage-based estimates are not an invoice or a provider-enforced billing cap. At the verification checkpoint, changes remained local; publication follows the owner's separate push request. No deployment or PR was performed.
+The newly approved $1 uses a durable shared text/voice ledger and application-level reservation guards, separate from historical $0.786320 usage. An uncertain early voice attempt retains $0.25 rather than being silently discarded. The [October 13 rate check](evidence/provider-pricing-20261013.json) supplied the estimates. Usage-based estimates are not an invoice or a provider-enforced billing cap. At the verification checkpoint, changes remained local; publication follows the owner's separate push request. No deployment or PR was performed.
 
 ### Prior approval closure and then-unresolved case
 
@@ -79,9 +79,9 @@ Paid testing stopped with **$0.484806577 observed additional usage**, **$0.25 he
 
 ## Historical pricing guards and synthetic voice preparation — October 13, 2026
 
-Contract 0.4 targets the two outstanding semantic failures without changing the original XML, expected answers or previous failed reports. Unsigned premiums default to a nonnegative `amount_cents` with no signed field; explicit signed comparisons retain negative values. Listed meals must declare drink size and reject non-medium requests with actionable standalone-conversion instructions. Returned selections echo the configuration actually priced. These deterministic guards do not themselves prove the model selects or reports the right answer. The latest live scores remain the historical 9/10 results below.
+Contract 0.4 targets the two outstanding semantic failures without changing the original XML, expected answers or previous failed reports. Unsigned premiums default to a nonnegative `amount_cents` with no signed field; explicit signed comparisons retain negative values. Listed meals must declare drink size and reject non-medium requests with actionable standalone-conversion instructions. Returned selections echo the configuration actually priced. These deterministic guards do not themselves prove the model selects or reports the right answer. At this checkpoint, the latest live scores were the 9/10 results below.
 
-Current local verification: **65 unit tests, 50 DynamoDB Local/HTTP MCP integration tests (including Inspector), and 4 Chromium browser journeys pass**. The new browser test uses software-only audio input and an intercepted WebSocket; it verifies capture frames, interruption notifications, stop/track cleanup, review blocking and unchanged cart state. It makes no provider call. Browser QA uses isolated web/runtime ports 3122/3116 and an isolated Next build directory, leaving the existing demo servers alone. Inspector advertises ten tools under contract 0.4 with zero strict schema findings.
+Local verification at this checkpoint: **65 unit tests, 50 DynamoDB Local/HTTP MCP integration tests (including Inspector), and 4 Chromium browser journeys pass**. The new browser test uses software-only audio input and an intercepted WebSocket; it verifies capture frames, interruption notifications, stop/track cleanup, review blocking and unchanged cart state. It makes no provider call. Browser QA uses isolated web/runtime ports 3122/3116 and an isolated Next build directory, leaving the existing demo servers alone. Inspector advertises ten tools under contract 0.4 with zero strict schema findings.
 
 Lint, strict typecheck, production build and `git diff --check` pass. A repeat of the software-only voice test additionally asserts that playback sources are actually stopped and delayed old-generation audio is rejected. All owned QA listeners have stopped, and the owned isolated browser-QA entities were cleaned; normal demo records and persistent local database files were preserved.
 
@@ -129,7 +129,7 @@ The two remaining failures in the complete low-reasoning run were `1225|-50` ins
 
 Total observed usage across all three runs was **190,828 input tokens and 21,694 output tokens**, costing an estimated **$0.12263174** using the verified regional standard catalog rates ($0.33/M input, $2.75/M output). This stayed under the owner's approved $1 maximum. [AWS price catalog](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonBedrock/current/us-west-2/index.json), publication October 10, 2026. This is a token-based estimate; the AWS invoice was not checked.
 
-The runner reserves conservative input/output costs before each call, keeps a 25% margin, deducts prior reported spend across preserved runs, retains reservations for unknown outcomes, disables provider retries, and bounds tools, context, turns and output. Current Nova 2 Lite does not provide CountTokens, so its input reservation uses two tokens per serialized UTF-8 byte plus 8,192 framing tokens. The input bound was checked against reported usage after each call. This is an application-side spending guard, not an AWS billing cap.
+The runner reserves input/output costs before each call, keeps a 25% margin, deducts prior reported spend across preserved runs, retains reservations for unknown outcomes, disables provider retries, and limits tools, context, turns and output. At this checkpoint it did not use CountTokens; its input reservation used two tokens per serialized UTF-8 byte plus 8,192 framing tokens. The input bound was checked against reported usage after each call. This guards application spending; it cannot enforce AWS billing limits.
 
 For a new comparison, follow [run an authorized text evaluation](model-improvements.md#run-an-authorized-text-evaluation). Use a fresh report ID and an initialized approval ledger; both suites share that approval's observed usage and outstanding reservations. Preserve these reports and earlier reservations. The historical $1 approval above does not authorize another run.
 
@@ -184,7 +184,7 @@ The MCP follow-up reran all three Playwright workflows and refreshed the screens
 
 The final browser pass also checks that an invalidated quote no longer leaves stale confirmation instructions visible and that the confirm control is enabled/opaque before capturing review. Semantic labels, focus styling and reduced motion are implemented; this is not a full screen-reader or accessibility certification.
 
-## Remaining validation and operating limits
+## Validation still open at the October 20 checkpoint
 
 - **Live speech:** one synthetic-input invocation through real Sonic passed 16 checks before the latest shared pricing-guidance and signed-summary changes. Sonic was not rerun for this text-only follow-up. Physical microphones/speakers, echo, noisy input, acoustic interruptions and independent spoken-price correctness remain unverified; the passing run observed no interruption signals. See [voice lifecycle](voice.md). Hardware trials and further paid calls require the appropriate authorized scope and spending limit.
 - **Text model:** both final unchanged full suites passed 10/10 on matching implementation hashes. Earlier failures remain preserved. These development questions are not an unseen holdout, and one complete pass per suite does not establish general reliability.
@@ -193,4 +193,4 @@ The final browser pass also checks that an invalidated quote no longer leaves st
 - **Reliability/security:** concurrency, durable leases and timeout reconciliation are locally tested; sustained load, process/crash soak, network partitions, backup/restore, browser matrix and independent security review remain future work.
 - **Submission:** a local 2:36 demo, portable recording receipt and draft copy are prepared. The video is not uploaded, and no submitted entry is evidenced. Current rules, eligibility, repository/license access, final claims, publishing and terms remain participant-controlled steps.
 
-The usable handoff includes the tested no-key ordering flow, bounded AWS persistence evidence, two passing full text benchmarks, the earlier synthetic-input Sonic trial and the recorded fixture demo. Sonic revalidation after the shared guidance changes, physical speech acceptance and broader external integrations remain open.
+Later source checks and recordings are listed in [submission verification](submission/verification.md). See [implementation status](implementation-plan.md) for remaining work on the current source.

@@ -1,4 +1,4 @@
-# Architecture and correctness boundaries
+# Architecture
 
 ## Runtime topology
 
@@ -30,11 +30,16 @@ Kitchen polls only accepted/preparing/ready orders
 
 ## Domain and transport boundaries
 
-`packages/contracts` defines Zod commands and shared types. `domain/engine.ts` is deterministic: no model pricing. `domain/service.ts` is the transaction and authority boundary. `db/schema.ts` defines persisted entity types. A partition key isolates each environment and restaurant; sort keys identify entity records. The repository stages changes, performs strongly consistent reads, and atomically commits them with a condition on the restaurant revision. Read decisions recheck that revision; transaction conflicts rerun against fresh state. `integrations` contains actual MCP, POS and Nova adapters. Staff routes deliberately use authorized domain services directly; conversational routes never call tool handlers as an MCP shortcut.
+`packages/contracts` defines Zod commands and shared types. `domain/engine.ts` validates selections and calculates prices without model calls. `domain/service.ts` checks authority and coordinates transactions. `db/schema.ts` defines persisted records. Environment and restaurant partition keys isolate datasets; sort keys identify records. The repository reads consistently, stages changes and commits them only if the restaurant revision still matches. Conflicts rerun against fresh state.
 
-The [version 0.5 MCP contract](mcp-contracts.md) validates exact success/error payloads on both server and client. Its eleven tools include read-only `find_meal_savings` for equivalent-cart proposals with [separate customer acceptance](draft-improvements.md), plus a hypothetical price comparison that runs the ordering engine against temporary in-memory selections and never writes cart, quote, consent or order entities. Comparisons default to a nonnegative price gap; explicit `signed_change` returns each later option minus the first. Its summary supplies both subtraction directions with explicit operand labels so answer-field order need not match tool-option order. The signed-summary follow-up preserves the comparison's numeric fields, schema and unsigned price-gap behavior. Compact agent responses omit unnecessary UI state; the browser gateway separately reads the authenticated full view. Structured recovery metadata survives HTTP and Nova adapter boundaries.
+Conversational requests use the HTTP MCP client. Staff routes call authorized domain services directly. `integrations` contains the MCP, POS and Nova adapters.
 
-Shared pricing guidance reaches both the text evaluation and the Nova voice adapter. It now preserves the same product and unrelated choices across before/after modifications and matches signed differences to the requested operand labels. A [synthetic-input trial through real Sonic](evidence/live-voice-sonic-v4-i-20261014.json) passed before these shared-guidance and signed-summary changes; its [source manifest](evidence/live-voice-i-source-manifest.json) identifies the tested implementation. No Sonic rerun occurred in the later text-only follow-up, so that saved pass does not verify the changed voice behavior. Physical voice remains unverified. See [voice boundaries](voice.md).
+The [version 0.5 MCP contract](mcp-contracts.md) validates success and error payloads on both server and client. Its eleven tools include two read-only pricing tools:
+
+- `find_meal_savings` proposes equivalent cart groupings for [customer acceptance](draft-improvements.md).
+- `compare_menu_prices` prices temporary in-memory selections. It defaults to a nonnegative gap; `signed_change` returns each later option minus the first. Summaries label both subtraction directions.
+
+Neither tool writes carts, quotes, approvals or orders. Agent responses contain compact results and recovery actions; the browser separately fetches the full authenticated view. Shared model guidance preserves the product and unrelated choices during price comparisons. [Text evaluation](model-improvements.md) and [voice verification](voice.md) record which versions were tested.
 
 ## Independent state machines
 
@@ -44,28 +49,30 @@ Shared pricing guidance reaches both the text evaluation and the Nova voice adap
 | Ownership   | ai ↔ staff; monotonic fence                                                     | Reject old AI credentials on takeover/handoff           |
 | Cart        | integer version; stable individual line IDs                                      | Optimistic correction target and deterministic pricing  |
 | Quote       | valid → invalidated; 2-minute expiry                                             | Exact cart/menu/price snapshot and SHA-256 binding      |
-| Approval    | absent → customer-recorded → consumed                                            | Not a model-supplied boolean                            |
+| Approval    | absent → customer-recorded → consumed                                            | Bind customer consent to the exact quote                |
 | Order       | submitted → unknown/accepted/rejected; accepted → preparing → ready → handed_off | Acceptance is separate from submission and fulfillment  |
 | Outbox job  | pending → leased → done; expired lease → reclaimed                               | Durable retry; worker-token fencing                     |
 | Audio       | playback generation, interrupted audio content IDs (completion-ID fallback)      | Drop interrupted audio, independent of cart/ownership   |
 
-The restaurant revision serializes changes for this one-lane MVP. Every writer increments it within the same `TransactWriteItems` bundle as its entity changes. This protects missing-key checks, query results, cart versions, approvals and leases. Read snapshots recheck the revision, and unknown transport outcomes return for reconciliation instead of replaying an arbitrary write. This intentionally prioritizes clarity over multi-restaurant throughput. Two concurrent cart requests with the same expected version cannot both apply. A batch rolls back entirely if any command is invalid. Missing required choices can remain visibly unresolved in a draft; they block review.
+The restaurant revision serializes changes for this one-lane demo. Every writer increments it within the same `TransactWriteItems` bundle as its entity changes. This protects missing-key checks, query results, cart versions, approvals and leases. Reads recheck the revision. An uncertain transport outcome requires reconciliation before another write. Two cart requests with the same expected version cannot both apply, and a batch rolls back if any command is invalid. Missing choices may remain visible in a draft, but block review. Multi-restaurant throughput has not been tested.
 
-Every added quantity becomes individual lines. Updating quantity is supported, but meal conversion requires a single selected sandwich. Modifiers are allowlisted options, not arbitrary notes. Standalone meal conversions use an explicit base sandwich + medium fries + selected drink and supported size minus a fictional $1 bundle discount. Listed meals include a medium drink; a different drink size requires standalone conversion. Converted sandwiches retain their permitted modifiers. No implicit substitutions or paid upgrades.
+Each added item gets its own line. Quantity updates are supported; meal conversion requires a single selected sandwich. Modifiers must come from the menu's allowed options. A conversion combines the sandwich, medium fries and a selected drink/size, then subtracts a fictional $1 discount. Listed meals include a medium drink; other sizes require standalone conversion. Sandwich modifiers are preserved, and substitutions or paid upgrades require explicit choices.
 
-Meaningful draft changes persist a receipt and one Undo snapshot when both selections can be priced. The authenticated full view exposes `last_change` and `meal_savings`; compact MCP cart responses keep their existing shape. Applying savings recomputes the displayed proposal inside the transaction and checks its session, fence, cart, menu and price binding. Undo restores the prior selections and stable line IDs at a new cart version. Both customer actions require idle voice and an editable, unsubmitted draft; both invalidate the old quote and require fresh review/approval. An Undo cannot itself be undone. See [draft improvements](draft-improvements.md) for route inputs and guard conditions.
+Draft changes save a receipt and one Undo snapshot when both selections can be priced. The full browser view exposes `last_change` and `meal_savings`; compact MCP cart responses keep their existing shape. Applying savings recomputes the proposal in the transaction and checks its session, ownership, cart, menu and prices. Undo restores the previous selections and line IDs at a new cart version. Both actions require idle voice and an editable, unsubmitted draft, invalidate the old quote and require a new review. Undo can be used once per change. See [draft improvements](draft-improvements.md) for route inputs and guards.
 
 ## Consent and idempotency
 
-An authenticated customer cookie calls the approval route. It validates quote expiry, snapshot hash, cart/menu versions, fence, unresolved choices and staff review. Live voice has a database-backed lease; confirmation is blocked until voice is stopped and queued work drains. The ordering agent never receives the customer's cookie and cannot call the approval route.
+Screen approval uses the authenticated customer cookie. The route checks quote expiry, snapshot hash, cart/menu versions, ownership, unresolved choices and staff review. A database voice lease blocks screen approval until voice stops and queued work drains. The agent never receives the customer cookie.
+
+The current Nova adapter uses screen approval only. Its transcript fragments cannot establish a complete final customer utterance, so spoken approval remains disabled. The [voice-confirmation core](voice-confirmation.md) and controlled tests support a future adapter with complete speech evidence.
 
 Review creation uses a UUID scoped to session and actor, with an argument hash persisted on the quote. Identical retries return the same still-valid quote without renewing expiry or approval. Expired, changed or fenced reviews cannot be revived by replaying their request ID. A new review requires a new identity and fresh approval.
 
-Submission atomically consumes approval, inserts one order (unique session and quote), and inserts its outbox job. The stable external key is derived from session + operation, not generated on every retry. Duplicate submissions for the same quote return the existing order. A different quote or a reused cart request ID with different payload is rejected. Draft reset has a version-bound token which only the customer action can consume.
+Submission atomically consumes approval and inserts one order and its outbox job. The external key is derived from the session and operation, so retries retain the same key. Duplicate submissions for the same quote return the existing order. A different quote or a reused cart request ID with a different payload is rejected. Draft reset has a version-bound token consumed only by a customer action.
 
-The worker selects a pending or expired job and conditionally commits a 30-second lease. Concurrent claimers lose the revision condition and reread, then POS work runs outside the database transaction. Every attempt first looks up the external key. A timeout can mean the sandbox accepted; the visible order remains `unknown`, staff receives a handoff, and reconciliation keeps the same key. Receipt keys and payload hashes are unique/checked. Completion updates require the lease token, preventing a superseded worker from overwriting a newer result. This is not a promise of exactly-once delivery for a hypothetical commercial POS.
+The worker claims pending or expired jobs with a 30-second lease. Concurrent claimers reread after a revision conflict; POS work runs outside the transaction. Every attempt first looks up the external key. A timeout may occur after acceptance, so the order remains `unknown`, staff receives a handoff and reconciliation keeps the same key. Receipt keys are unique and payload hashes are checked. Completion requires the current lease token. These guarantees apply to the local sandbox; commercial POS behavior remains untested.
 
-Accepted-order amendments/cancellation are intentionally **staff handoff only**. The MVP does not provide automatic ticket amendments or real cancellation. Departing the lane revokes the interaction, not the accepted order.
+Accepted-order changes and cancellation require **staff handoff**. The demo has no automatic ticket amendment or cancellation. Departing the lane ends the interaction and preserves the accepted order.
 
 ## Persistent records
 
