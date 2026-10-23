@@ -1,0 +1,44 @@
+{
+  "verifiedAtUtc": "2026-10-23T15:28:06Z",
+  "submission": {
+    "submission_id": 1255219,
+    "status": "Submitted",
+    "hackathon_subdomain": "amazonappdev2026",
+    "project_slug": "saygo-q2o7f4",
+    "submitted_at": "2026-10-23T11:27:56.582-04:00",
+    "url": "https://devpost.com/software/saygo-q2o7f4"
+  },
+  "publicProject": {
+    "id": 1500779,
+    "slug": "saygo-q2o7f4",
+    "state": "published",
+    "published_at": "2026-10-23T11:26:31.740-04:00",
+    "video_url": "https://www.youtube.com/watch?v=vc-iBxxVerc",
+    "url": "https://devpost.com/software/saygo-q2o7f4"
+  },
+  "implementationCommit": "42e8d43f64934da1506af6993d7a1e160d65cb48",
+  "followUpScope": "Submission status documentation and public receipt only; application/runtime/test implementation unchanged from this commit.",
+  "tracks": [
+    "Alexa+"
+  ],
+  "miniChallenges": {
+    "awsBuilder": true,
+    "openSource": false
+  },
+  "thumbnail": {
+    "uploadHttpStatus": 200,
+    "publicUrl": "https://d112y698adiu2z.cloudfront.net/photos/production/software_thumbnail_photos/005/657/451/datas/medium.png"
+  },
+  "technicalFieldIdsUpdated": [
+    28294,
+    29377,
+    28303,
+    28304,
+    28305,
+    28306,
+    28307,
+    29056,
+    28301
+  ],
+  "verificationSource": "Live Devpost API submission/project state verified by the submitting session; private raw receipt retained by the owner."
+}

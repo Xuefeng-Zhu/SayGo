@@ -1,6 +1,6 @@
 {
-  "preparedAtUtc": "2026-10-23T15:21:37.961883+00:00",
-  "baseHead": "2b6dc36ff16b073bfc07b1c3982021373b6a4ac5",
+  "preparedAtUtc": "2026-10-23T15:30:40.121181+00:00",
+  "baseHead": "42e8d43f64934da1506af6993d7a1e160d65cb48",
   "scope": "Proposed current publication bytes: tracked and required nonignored source/docs/assets; excludes self to avoid recursive hashing, generated next-env, output, ignored raw media/config/dependencies and owned metadata.",
   "recordedSource": {
     "take": "take-08",
@@ -37,7 +37,7 @@
     "tests/unit/pcm-capture-boundary.test.ts",
     "tests/unit/sealed-voice-confirmation.test.ts"
   ],
-  "sourceFileCount": 215,
+  "sourceFileCount": 216,
   "sourceSha256": {
     ".env.example": "3512e0a123e8c62c176ef4ecf81ad2880ccd7d2de56b58182f4c067162eeeb64",
     ".gitignore": "addb7ece3c5a5b8a9b02c2ba01bf1df4dc4241c0a0246fa21f127fcac50259f6",
@@ -85,7 +85,7 @@
     "apps/worker/package.json": "c51a66df2f94c2089c806c93cd8bb48efd3b44ac07adb593222ede026baa4071",
     "apps/worker/src/index.ts": "05c22c384f0b7af25915409ac84c32fcc9063d8e404811e5f0e6b996ac181b0d",
     "compose.yaml": "0188076d2ec4d859d71545da85b62e97782fd6d872010f846589d28f470dfba6",
-    "devpost-submission.md": "b0e6d318832e5ae8a07f6ffd360bd3cc25bcc9aaef7488b442d219776670afa5",
+    "devpost-submission.md": "3ab5975b9c3e79b80713acd8aba2ce0caf59fe6c123398cbe28ec576601f6bcf",
     "docs/architecture.md": "0ed05dc237ba0313db422bf58c03aa77c4d29bd0c7f68e048f2205dd5bb9f2f6",
     "docs/customer-mcp-log.md": "cbaaf215fc7720ffa423af9110a10dd15e84c27b40102bfdc18823f65ca98a64",
     "docs/demo-and-submission.md": "0b891c695c77d1814c59d7d483d9254940f8316be9691ebe570ff33e392db70a",
@@ -163,7 +163,8 @@
     "docs/submission/screenshots/kitchen.png": "23808748e12d684fcbb9749262ea08ce1caff02b5a69bb6f2c017eba55208dc8",
     "docs/submission/screenshots/screen-review.png": "08d9b1ba3f50c6777ed9c66f63991c71f1c926ef69daac179e175009f7ef0523",
     "docs/submission/screenshots/voice-order.png": "ef6c28eab00ff350f3e56432891773b1dd9f243de4daabac59dae4b9d6fca2a8",
-    "docs/submission/submission-checklist.md": "ce91646225ae31dd6619f875e29dfbf7d2bd828ebd5880859a1affacffbfcc43",
+    "docs/submission/submission-checklist.md": "d5d7b053d9446f520cd8382abf7c4e882ef63d57ce6129d1a58cd59d37a020e1",
+    "docs/submission/submission-receipt.json": "0e87181b1aeeaaad0ebe01e26521ad87e5ade9674cea632f47511224ac63698e",
     "docs/submission/verification-summary.json": "2f625fbfcad0c251d5da632b48e272236ddf5f954f17be4295537b69e33a21fb",
     "docs/submission/verification.md": "fef85eb3dc40f086c86777e7dd174c1dc71cd5f2e0a7fdc7701924beced4c4a3",
     "docs/undo-and-takeover.md": "df8f86210a9ae71a272409cb6aaaa31e418d54835e12a8d1ca661cb6da3408be",
@@ -254,5 +255,16 @@
     "third_party/licenses/next-MIT.txt": "ee765244e2d59f5234d474f62e0766fa0c8b99af967fdd4c0cb8dcb0c76ea224",
     "tsconfig.json": "367ae0bf152f597b9aee9735ae470abfb7f7c311592c52e0fea061f4e7dfdda4",
     "vitest.config.ts": "989caa08426c952f58d17438776b7976c4494e1b6fd74e93e9ea470b4e567bff"
+  },
+  "submissionStatusDocumentation": {
+    "implementationCommit": "42e8d43f64934da1506af6993d7a1e160d65cb48",
+    "applicationRuntimeAndTestsUnchanged": true,
+    "files": [
+      "devpost-submission.md",
+      "docs/submission/submission-checklist.md",
+      "docs/submission/submission-receipt.json"
+    ],
+    "publicProject": "https://devpost.com/software/saygo-q2o7f4",
+    "submissionStatus": "Submitted"
   }
 }
