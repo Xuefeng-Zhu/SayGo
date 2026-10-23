@@ -2,11 +2,11 @@
 
 Updated October 23, 2026 from the existing submission schema and inspected saved form values. There are **30 custom fields**, including **21 marked required**. The normal project description and video deliverable are additional. No Codex session ID appears in this form.
 
-Review the technical drafts before using them. Preserve the entrant's saved personal declarations, future-use opinion and track choices; this document updates technical evidence.
+This document records the saved technical answers and entrant declarations. The October 23 revision adds tool-specific feedback and the three principal friction entries directly to Question 3. Onboarding elapsed times were not recorded.
 
 ## Choices and links
 
-| Field ID    | Actual form field                                    | Draft answer / remaining action                                                                                                                                                                                                                                    |
+| Field ID    | Actual form field                                    | Saved answer / evidence                                                                                                                                                                                                                                    |
 | ----------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 28285       | Submitter Type                                       | Saved: **Individual**.                                                                                                                                                                                                                       |
 | 28286       | Organization Name                                    | Saved: **N/A**.                                                                                                                                                                                                    |
@@ -18,16 +18,16 @@ Review the technical drafts before using them. Preserve the entrant's saved pers
 | 28292       | Existing-project updates                             | Not used because the saved choice is **New**.                                                                                                                                                                           |
 | 28293       | AWS Builder Mini Challenge?                          | Saved: **Yes**.                                                                                                                                                                                                                                     |
 | 28294       | AWS services incorporated and how                    | Use the technical answer below. This textarea is marked required.                                                                                                                                                                                                  |
-| 28295       | Open Source Mini Challenge?                          | Saved and verified: **Yes**; existing-public-repository contribution route. |
-| 28296       | Open Source contribution URL                         | [Sealed spoken-approval contribution](https://github.com/Xuefeng-Zhu/SayGo/commit/42e8d43f64934da1506af6993d7a1e160d65cb48). |
-| 28297       | Open Source project repository URL                   | [Xuefeng-Zhu/SayGo](https://github.com/Xuefeng-Zhu/SayGo), public and MIT-licensed. |
+| 28295       | Open Source Mini Challenge?                          | Saved and verified: **Yes**; new additional MIT project route. |
+| 28296       | Open Source contribution URL                         | [Standalone MCP validation helper contribution](https://github.com/Xuefeng-Zhu/mcp-validation-envelope/commit/9bb2bda70521fd074ac95f95461da8c101278db4). |
+| 28297       | Open Source project repository URL                   | [Xuefeng-Zhu/mcp-validation-envelope](https://github.com/Xuefeng-Zhu/mcp-validation-envelope), public and MIT-licensed. |
 | 28298       | Open Source GitHub username                          | Xuefeng-Zhu. |
 | 28299       | Open Source contribution description                 | Exact saved contribution description below. |
-| 28300       | Optional Feature Requests                            | Draft suggestions below; owner may omit.                                                                                                                                                                                                                           |
-| 28301       | Optional Friction Log URL                            | Proposed: [friction log](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md); verify public access before using it.                                                                                                                    |
+| 28300       | Optional Feature Requests                            | Saved feature requests below.                                                                                                                                                                                                                           |
+| 28301       | Optional Friction Log URL                            | Saved: [friction log](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md). The form defines this as a URL field; Question 3 also contains all three principal entries in full.                                                                                                                    |
 | 28302       | Optional Project Testing Link                        | No hosted application URL verified. Local instructions are provided instead.                                                                                                                                                                                       |
 | 29377       | Testing instructions / credentials                   | Use the short reviewer answer below.                                                                                                                                                                                                                               |
-| 28303–28307 | Five required product-feedback answers               | Current technical drafts below; saved future-use answer is **Yes**.                                                                                                                                                                                       |
+| 28303–28307 | Five required product-feedback answers               | Saved technical answers below; saved future-use answer is **Yes**.                                                                                                                                                                                       |
 | 28308       | Age                                                  | Saved: checked. Preserve the entrant's declaration.                                                                                                                                                                                          |
 | 28309       | Eligible Jurisdiction                                | Saved: checked. Preserve the entrant's declaration.                                                                                                                                                                                     |
 | 28310       | Employee                                             | Saved: checked. Preserve the entrant's declaration.                                                                                                                                                                  |
@@ -35,23 +35,23 @@ Review the technical drafts before using them. Preserve the entrant's saved pers
 | 29057       | Learning level                                       | Saved: **Moderate**.                                                                                                                                                                                                                          |
 | 29058       | Career AI value                                      | Saved: **Yes**.                                                                                                                                                                                                                                               |
 
-**Required video deliverable, outside the above custom fields:** [Public 179-second YouTube video](https://www.youtube.com/watch?v=vc-iBxxVerc), publication/watch page verified October 23. Final Devpost submission remains a separate action.
+**Required video deliverable, outside the above custom fields:** [Public 179-second YouTube video](https://www.youtube.com/watch?v=vc-iBxxVerc), publication/watch page verified October 23. The live entry is Submitted; the original submission timestamp is retained in the receipt.
 
 ## 28299 — Open Source contribution description
 
-Saved and verified October 23, 2026. The following text matches the live submission field exactly:
+I created mcp-validation-envelope as a new, additional MIT-licensed TypeScript project alongside SayGo, published October 23, 2026. It extracts and generalizes the structured MCP recovery pattern developed while building SayGo; it has no SayGo runtime, database, voice or AWS dependency.
 
-I contributed a sealed spoken-approval coordinator to the existing public, MIT-licensed SayGo repository, published on October 23, 2026 in commit 42e8d43. It binds fresh customer audio to the exact quote, cart, session and connection; checks completed readback and natural provider termination; and releases the retained MCP submission only after explicit approval passes server checks.
+The package uses the official MCP SDK low-level Server with Zod validation inside the tools/call handler. Invalid arguments, declared application failures and successful results share an advertised, validated envelope with matching structuredContent and JSON text; isError distinguishes failure. Unexpected exceptions are sanitized, invalid inputs skip execution and unknown tools remain protocol errors.
 
-The change adds browser PCM/playback boundaries and unit, integration and browser regression tests for partial or negative utterances, expiry, interruption and stale state. It integrates with SayGo's existing MCP/DynamoDB ordering workflow. This helps developers separate conversational tool requests from customer consent before consequential actions, with an inspectable, tested implementation they can reuse under the MIT license.
+It includes a runnable SDK client/server example, generated input/output schemas and 12 passing tests, including JSON-RPC correlation, output validation and thrown-validation-error redaction. The repository documents provenance, reusable installation and its in-memory verification scope. This gives other MCP developers a small, inspectable alternative when they need consistent machine-readable recovery from validation failures.
 
 ## 28294 — AWS services incorporated and how
 
-Amazon Bedrock provides Nova 2 Sonic for live speech and tool requests. Browser PCM passes through an authenticated Node gateway; Nova uses schema-validated MCP tools rather than writing orders directly. Nova 2 Lite was used separately for bounded menu/pricing evaluation.
+Amazon Bedrock Nova 2 Sonic handles live bidirectional speech and model tool requests through the AWS SDK for JavaScript. A server-side Node gateway streams browser PCM and keeps AWS credentials off the client. Nova 2 Lite was used separately for bounded menu/pricing evaluation.
 
-Amazon DynamoDB stores canonical menu, cart, quote, approval, order and delivery records. Transactions and version checks protect changes. The successful October 23 take used remote DynamoDB with a fresh fictional namespace, removed after verification. DynamoDB Local is available for isolated tests and credential-free reviewer fixtures.
+Amazon DynamoDB holds the canonical menu, cart, quote, customer approval, order and delivery job. Transactions and cart/quote version checks protect state changes; stable delivery keys support sandbox POS retries. The successful take used remote DynamoDB in an isolated fictional namespace, cleaned up after verification. DynamoDB Local provides reproducible credential-free reviewer fixtures.
 
-Amazon Polly Generative Matthew generated prerecorded male customer speech and narration. Nova Tiffany restaurant replies were generated live in the take. Server-verified sealed spoken approval now precedes the actual MCP submission. SayGo is an independent Alexa+ browser concept simulation, not a native Alexa+ deployment; delivery uses SandboxPos.
+Amazon Polly Generative Matthew produces consistent prerecorded male customer speech and narration. Restaurant replies were generated live by Nova 2 Sonic with the female Tiffany voice. The MCP TypeScript SDK connects the pipeline through 11 tools over MCP 2025-11-25 Streamable HTTP; Zod validates tool inputs/results. Server-verified sealed spoken approval gates submission. This is an Alexa+ browser concept simulation with SandboxPos.
 
 ## 28292 — Existing-project update explanation, only if applicable
 
@@ -69,41 +69,47 @@ Nova 2 Sonic supplies live speech and tool requests; Nova 2 Lite was used for se
 
 Codex assisted implementation, review, lifecycle/approval fixes, regression tests, synthetic-audio QA, evidence and submission preparation. Remotion/Cirro and local FFmpeg/NumPy tools produced and verified the film. Application logic retains explicit quote-bound customer approval. This is a browser-based Alexa+ concept simulation; no native Alexa+ deployment, official Alexa hardware or voice cloning was used.
 
-## Required product feedback — evidence-based draft
+## Required product feedback — saved answers
 
 These technical updates describe current recorded behavior. The future-use **Yes** and its preference language are retained from the saved entrant answer.
 
 ### 28303 — Which developer tools, APIs and SDKs did you use, and for what?
 
-SayGo targets the Alexa+ simulation track with visible, correctable restaurant ordering. Amazon Bedrock Nova 2 Sonic and the AWS SDK for JavaScript provide live browser speech, captions and model tool requests; Nova 2 Lite supported separate bounded menu/pricing evaluation. This is not a native Alexa+ connection.
+Amazon Bedrock Nova 2 Sonic and the AWS SDK for JavaScript provide bidirectional speech, incremental audio/transcript events and model tool requests. Nova 2 Lite was used separately for bounded menu/pricing evaluation. Amazon Polly Generative Matthew generated the prerecorded synthetic male customer lines and narration; Nova Tiffany generated live female restaurant replies.
 
-The MCP TypeScript SDK and Zod expose eleven validated menu/order tools. DynamoDB and its SDK persist canonical carts, quotes, approvals, orders and delivery jobs; DynamoDB Local supports isolated tests. Node.js, TypeScript, Express and ws support the server; Next.js, React and Tailwind support customer/crew/kitchen screens. Vitest, Playwright and historical MCP Inspector checks test separate layers.
+Amazon DynamoDB and its JavaScript SDK persist canonical carts, quotes, approvals, orders and delivery jobs using transactions and version checks. DynamoDB Local supports reproducible review without owner AWS credentials. The MCP TypeScript SDK exposes 11 tools over MCP 2025-11-25 Streamable HTTP. Its low-level Server supports our structured recovery envelopes; Zod validates tool inputs and results.
 
-Codex assisted implementation, debugging, tests and evidence review. Polly Matthew creates synthetic customer/narration audio; Remotion, Cirro and local FFmpeg/NumPy tools produce the demo. Provider audio and model text cannot themselves establish customer consent.
+Node.js, Express and ws support the gateway; Next.js, React and TypeScript provide customer, crew and kitchen screens. Vitest and Playwright test application layers. Codex assisted implementation, debugging and evidence review; Remotion, Cirro and local FFmpeg/NumPy tools produced the film. This is an Alexa+ simulation, not a native Alexa+ integration.
 
 ### 28304 — What worked well?
 
-The useful result was connecting a spoken request to an inspectable application action. The successful October 23 take shows sixteen actual successful Voice calls covering ten tool types: ordering, correction, information reads, a dismissed reset proposal, review and submission. The visible MCP log shows source, outcome, measured duration and request/result summaries alongside the cart. Staff help is intentionally omitted.
+Nova's incremental audio and transcript events let us build progressive browser playback and visible turn feedback. The Bedrock SDK's bidirectional stream connected PCM input, generated speech and tool requests in one session. This made the interaction practical to exercise; we did not record an end-to-end latency benchmark.
 
-DynamoDB transactions and quote/cart checks support the approval boundary. The customer hears the exact quote, records fresh explicit approval, seals the capture and waits for server verification through natural provider completion before actual MCP submission. The take creates exactly one accepted $9.72 order/receipt with a matching kitchen ticket.
+The MCP SDK's low-level Server gave us control over application error envelopes while retaining official request schemas and Streamable HTTP transport. Zod validation on both inputs and outputs made recovery data consistent and inspectable.
 
-The web stack keeps persisted selections visible; Polly Matthew supplies repeatable synthetic male input. Tests and local media receipts retain source identity and failures. This successful synthetic-browser example does not establish native Alexa+ behavior or broad speech reliability.
+DynamoDB transactions and conditional version checks suited the canonical cart/quote/approval/order workflow. DynamoDB Local let reviewers reproduce persistent ordering behavior with fixtures and no AWS credentials. Polly Generative provided repeatable scripted speech, which made comparisons and recording easier than asking a conversational model to read fixed lines verbatim.
+
+TypeScript caught cross-layer contract mistakes; Vitest and Playwright separated domain, protocol and browser checks. React/Next.js kept the canonical order visible, while Remotion/Cirro and FFmpeg made the recorded flow reproducible as a captioned film. Codex helped iterate on these integrations, with tests and evidence review checking the changes.
 
 ### 28305 — What needs work?
 
-Trustworthy spoken approval required application work: provisional transcripts, model tool requests, actual readback playback, fresh capture, quote binding and provider completion occur at different times. The earlier screen-only fallback has now been replaced in the successful take by server-verified sealed spoken approval. A pending model submission request is not executed until that gate passes.
+1. MCP validation envelope — Task: call an advertised tool with invalid arguments and return structured recovery data. Steps: advertise the schema, initialize an SDK client and send an invalid tools/call request. Expected: our per-tool error envelope reaches the client. Actual: in our October 10 integration, MCP TypeScript SDK 1.32.1's high-level server validated before our handler and returned its own text-only error. Severity: Important; recovery shape was inconsistent. Workaround: use the official low-level Server with explicit Zod input/output validation, keeping protocol errors separate. Suggestion: allow customizable high-level validation errors, with a documented structured recovery example.
 
-The current take preserves genuine partial/repeated Nova replies, so concise, natural conversation and recovery still need broader human/noisy-audio testing. We have not isolated these integration issues as Nova, MCP or Alexa+ defects. An interrupted-confirmation reference lifecycle with clear diagnostics would help.
+2. Nova inputSchema.json serialization — Task: configure streamed Nova 2 Sonic tool schemas. Steps: compare the input-event and tool-configuration references, serialize the schema and open a stream. Expected: one unambiguous current-model format. Actual: public configuration examples showed both stringified JSON and objects; SDK comments also referenced original Sonic. Severity: Important; type checks could not prove runtime acceptance. Workaround: send JSON.stringify(schema) in inputSchema.json and verify using an account-backed stream. Suggestion: maintain one current Nova 2 Sonic end-to-end example covering schema serialization, interruption, usage events and stream cleanup, linked from the reference pages.
 
-Earlier attempts encountered expired AWS access and failed conversational customer synthesis. Dedicated Polly TTS produced repeatable scripted customer lines; a JSON-only CLI attempt failed locally before a service request. Local rendering failures are retained. Next.js 16.4.0 also triggered a known security advisory during the publication build; current source was patched narrowly to 16.4.1, while the recorded demo remains tied to 16.4.0. Native Alexa+ and commercial POS behavior remain untested.
+3. Sealed spoken approval — Task: read the exact quote and submit only after fresh explicit customer consent. Steps: prepare a quote, play its readback, record approval and inspect the pending tool request and provider termination. Expected: verified approval of that quote before MCP submission. Actual: partial transcripts, readback playback, model tool requests and stream completion had separate boundaries; a tool request alone could not prove consent. Severity: Blocking for trustworthy voice submission. Workaround: acknowledge completed playback, bind fresh capture to quote/cart/connection, seal the audio, defer the requested submission and verify through natural provider completion. Suggestion: publish a reference lifecycle for interrupted approval, deferred tools and final consent diagnostics. This is an application integration challenge, not an isolated vendor defect.
+
+The successful take verifies these boundaries with one $9.72 order and matching kitchen ticket. Human/noisy-intercom testing and more concise conversation recovery remain next steps. Full evidence and additional setup entries are in the linked friction log.
 
 ### 28306 — How was onboarding, from zero to hello world?
 
-For this project, the meaningful milestone was a customer speaking, correcting an order, and seeing the corresponding application action. A tool list or successful service connection alone would not demonstrate that journey.
+We did not record elapsed time to the first Nova stream or the first MCP tool call, so I cannot provide reliable estimates for either milestone.
 
-The browser simulation let us work on those interactions before native Alexa+ integration. Bedrock required authorized AWS access, model/region selection, PCM framing and streaming/tool-schema integration. MCP discovery and Zod schemas needed agreement at both ends. DynamoDB used an authorized table for the selected demo; the reviewer fixture route explicitly selects DynamoDB Local. The pinned web/server stack and matching Playwright Chromium need separate local ports/data.
+For Nova, hello world meant authorized AWS credentials, the correct region/model, a Bedrock bidirectional stream, correctly framed PCM input and playable returned audio. AWS access expiry, current-model documentation differences and inputSchema.json serialization slowed setup.
 
-The successful current take adds exact readback and sealed spoken approval to those milestones. For Alexa+ developers, I would welcome a complete reference lifecycle connecting turns, corrections, MCP execution and final approval with clear diagnostics. This is feedback from building the simulation, not a claim of native Alexa+ API failure. We have not measured onboarding time.
+For MCP, hello world meant starting the authenticated Streamable HTTP endpoint, initializing a client, discovering tools and making a real get_cart call. Zod discovery/input/output schemas and customizing high-level validation errors took extra work; the low-level Server supplied the needed control. Protocol 2025-11-25 and 11-tool discovery are covered by HTTP integration tests.
+
+DynamoDB Local made the next step reproducible without AWS credentials. Separate ports/data and matching Playwright Chromium were additional local setup requirements. A maintained Nova 2 Sonic example that reaches a first audio response and first MCP tool result would shorten this path. This feedback comes from the Alexa+ browser simulation.
 
 ### 28307 — Would you build with these devices and services again?
 
@@ -115,7 +121,7 @@ The current synthetic-audio take now verifies sealed spoken approval, with scree
 
 ## 28300 — Optional feature requests
 
-Draft suggestions for owner review:
+Saved feature requests:
 
 - **Important — provider streaming examples:** one maintained end-to-end Nova example covering current model ID, tool schemas, interruption, final usage and cleanup would reduce integration ambiguity.
 - **Important — protocol diagnostics:** clearer structured schema/validation errors across MCP server abstraction levels would make recovery easier to implement.

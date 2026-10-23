@@ -1,5 +1,5 @@
 {
-  "verifiedAtUtc": "2026-10-23T15:35:57.151951+00:00",
+  "verifiedAtUtc": "2026-10-23T16:01:01.695Z",
   "submission": {
     "submission_id": 1255219,
     "status": "Submitted",
@@ -17,7 +17,7 @@
     "url": "https://devpost.com/software/saygo-q2o7f4"
   },
   "implementationCommit": "42e8d43f64934da1506af6993d7a1e160d65cb48",
-  "followUpScope": "Submission status documentation and public receipt only; application/runtime/test implementation unchanged from this commit.",
+  "followUpScope": "Submission story, feedback, friction log, tags and Open Source contribution documentation; application/runtime/test implementation unchanged. The standalone helper is a separate repository.",
   "tracks": [
     "Alexa+"
   ],
@@ -76,6 +76,47 @@
       ],
       "awsBuilder": "Yes",
       "verificationSource": "Devpost MCP update succeeded; live form readback matched all five updated values and confirmed 25 other saved answers unchanged."
+    },
+    {
+      "verifiedAtUtc": "2026-10-23T16:01:01.695Z",
+      "type": "Before-noon submission improvements",
+      "status": "Submitted",
+      "updatedFieldIds": [
+        28294,
+        28303,
+        28304,
+        28305,
+        28306,
+        28296,
+        28297,
+        28299
+      ],
+      "updatedFieldsVerified": 8,
+      "otherSavedAnswersUnchanged": 22,
+      "storyUpdated": true,
+      "addedBuiltWith": [
+        "amazon-polly",
+        "zod"
+      ],
+      "frictionLog": "Three full entries are saved inline in feedback Question 3; the dedicated URL field is retained.",
+      "onboardingTiming": "Not measured; no estimate invented.",
+      "openSource": {
+        "repository": "https://github.com/Xuefeng-Zhu/mcp-validation-envelope",
+        "commit": "9bb2bda70521fd074ac95f95461da8c101278db4",
+        "license": "MIT",
+        "testsPassed": 12,
+        "independentFreshClonePassed": true
+      },
+      "contributionUrl": "https://github.com/Xuefeng-Zhu/mcp-validation-envelope/commit/9bb2bda70521fd074ac95f95461da8c101278db4",
+      "repositoryUrl": "https://github.com/Xuefeng-Zhu/mcp-validation-envelope",
+      "verificationSource": "Devpost MCP update and live project readback; live form matches all eight changed answers and preserves the remaining 22."
     }
-  ]
+  ],
+  "openSource": {
+    "repository": "https://github.com/Xuefeng-Zhu/mcp-validation-envelope",
+    "commit": "9bb2bda70521fd074ac95f95461da8c101278db4",
+    "license": "MIT",
+    "testsPassed": 12,
+    "independentFreshClonePassed": true
+  }
 }

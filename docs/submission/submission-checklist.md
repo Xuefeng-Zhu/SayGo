@@ -9,7 +9,7 @@
 - [x] Published the reviewed 2:59 movie publicly on [YouTube](https://www.youtube.com/watch?v=vc-iBxxVerc); publication dialog and public watch page verified October 23.
 - [x] Applied the approved current story and technical answers, public video and cover; preserved saved personal choices. The cover upload returned HTTP200.
 - [ ] Verify reviewer instructions and repository/video links from a fresh clone or independent reviewer environment. A fresh-machine installation remains unverified.
-- [x] Reviewed the current requirements and final preview, obtained action-time approval, submitted and verified live status **Submitted** before the cutoff. The public project is published with Alexa+, AWS Builder and the Open Source Mini Challenge selected. The later Open Source amendment verified all five fields and preserved the other 25 saved answers; the entry remains Submitted.
+- [x] Reviewed the current requirements and final preview, obtained action-time approval, submitted and verified live status **Submitted** before the cutoff. The public project is published with Alexa+, AWS Builder and the Open Source Mini Challenge selected. The latest amendment verifies eight changed answers and preserves the other 22. It links the new additional MIT repository [mcp-validation-envelope](https://github.com/Xuefeng-Zhu/mcp-validation-envelope), whose build, typecheck, 12 tests and runnable example passed from a fresh public clone. The entry remains Submitted.
 
 ## Source and evidence
 
@@ -17,7 +17,7 @@ The current take is based on `2b6dc36ff16b073bfc07b1c3982021373b6a4ac5` with fin
 
 The film's SHA-256 is `8143f49dfb2ce43c2253998e6e049744531d963db41697e6bb2a9ced741e4e47`. Polly Matthew supplies synthetic male customer speech/narration; Nova Tiffany restaurant replies were generated during take 08. Ten tool types are shown; staff help is intentionally omitted. Genuine partial/repeated replies remain visible. No physical microphone, real order/payment or native Alexa+ deployment is claimed.
 
-Optional field 28301 now links the published [friction log](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md). Any judging bonus is discretionary.
+Optional URL field 28301 links the published [friction log](https://github.com/Xuefeng-Zhu/SayGo/blob/main/docs/submission/friction-log.md). Feedback Question 3 also contains the three principal entries in full. The impact-led story names MCP 2025-11-25 over Streamable HTTP and eleven tools; `amazon-polly` and `zod` are included in Built With. Any judging bonus is discretionary.
 
 ## Event timing recorded during preparation
 
