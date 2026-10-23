@@ -10,7 +10,11 @@ interface TestSocket extends EventEmitter {
   send: ReturnType<typeof vi.fn>;
 }
 const mock = vi.hoisted(() => {
-  const client = { close: vi.fn<() => Promise<void>>(), call: vi.fn() };
+  const client = {
+    close: vi.fn<() => Promise<void>>(),
+    call: vi.fn(),
+    tools: [{ name: "request_staff_help" }],
+  };
   const nova = {
     start: vi.fn<() => Promise<void>>(),
     close: vi.fn<() => void>(),

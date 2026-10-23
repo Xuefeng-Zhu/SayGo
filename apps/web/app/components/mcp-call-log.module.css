@@ -1,0 +1,163 @@
+.log {
+  min-width: 0;
+  margin-top: 24px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+}
+
+.summary {
+  min-height: 48px;
+  padding: 15px 0;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.summary::marker {
+  color: var(--leaf);
+}
+
+.summary:focus-visible {
+  outline: 3px solid #2676a5;
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+.count {
+  display: inline-block;
+  margin-left: 9px;
+  min-width: 23px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: #e7ecdf;
+  color: #3b5039;
+  font-size: 12px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.body {
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.description,
+.announcement,
+.retention {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.announcement {
+  color: var(--ink);
+}
+
+.calls {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.calls:focus-visible {
+  outline: 3px solid #2676a5;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.call {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #d3d5c9;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+
+.tool {
+  min-width: 0;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pending {
+  color: #6d551b;
+}
+
+.succeeded {
+  color: #3a603c;
+}
+
+.failed {
+  color: #8f251b;
+}
+
+.unknown {
+  color: #795117;
+}
+
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 4px 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.input,
+.result {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.term {
+  color: var(--muted);
+}
+
+.retention {
+  margin-bottom: 0;
+  font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .summary {
+    font-size: 16px;
+  }
+
+  .tool,
+  .input,
+  .result {
+    font-size: 13px;
+  }
+
+  .status,
+  .metadata,
+  .retention {
+    font-size: 12px;
+  }
+}

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual, scryptSync } from "node:crypto";
 import type { Request, Response } from "express";
-import type { Scope } from "@saygo/contracts";
+import type { CustomerMcpSource, Scope } from "@saygo/contracts";
 import { config, store, RESTAURANT } from "@saygo/db";
 import { assert, scopeForToken } from "@saygo/domain";
 import { z } from "zod";
@@ -71,15 +71,27 @@ const scopeSchema = z.object({
   fence: z.number().int(),
   actor: z.literal("agent"),
 });
-export function agentToken(scope: Scope) {
+type GatewayMcpSource = Exclude<CustomerMcpSource, "mcp">;
+const gatewaySource = (value: unknown): value is GatewayMcpSource =>
+  value === "voice" || value === "screen" || value === "fixture";
+
+export function agentToken(scope: Scope, source?: GatewayMcpSource) {
   return sign({
-    ...scope,
+    restaurant_id: scope.restaurant_id,
+    lane_id: scope.lane_id,
+    session_id: scope.session_id,
+    epoch: scope.epoch,
+    fence: scope.fence,
     actor: "agent",
     aud: "mcp",
     exp: Date.now() + 15 * 60000,
+    ...(gatewaySource(source) ? { mcp_log_origin: source } : {}),
   });
 }
-export function mcpScope(req: Request): Scope {
+export function mcpContext(req: Request): {
+  scope: Scope;
+  origin: GatewayMcpSource | "external";
+} {
   const credential = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/i.exec(
     req.headers.authorization ?? "",
   );
@@ -88,7 +100,15 @@ export function mcpScope(req: Request): Scope {
   assert(data.aud === "mcp", "AUTH", "Wrong credential audience.", 403);
   const scope = scopeSchema.safeParse(data);
   assert(scope.success, "AUTH", "Invalid credential scope.", 401);
-  return scope.data;
+  return {
+    scope: scope.data,
+    origin: gatewaySource(data.mcp_log_origin)
+      ? data.mcp_log_origin
+      : "external",
+  };
+}
+export function mcpScope(req: Request): Scope {
+  return mcpContext(req).scope;
 }
 export const laneScope = (req: Request) =>
   scopeForToken(cookie(req, "saygo_lane"));

@@ -17,7 +17,9 @@ import {
   type ToolName,
 } from "@saygo/contracts";
 import { getView, tool } from "@saygo/domain";
-import { mcpScope } from "./auth.js";
+import { McpCallError } from "@saygo/integrations";
+import { mcpContext } from "./auth.js";
+import { customerMcpLog } from "./customer-mcp-log.js";
 import { executionRecovery, inputRecovery, toolData } from "./mcp-results.js";
 const descriptions: Record<ToolName, string> = {
   find_meal_savings:
@@ -89,7 +91,7 @@ const tools = (Object.keys(toolSchemas) as ToolName[]).map((name) => {
   });
 });
 export async function handleMcp(req: Request, res: Response) {
-  const scope = mcpScope(req);
+  const { scope, origin } = mcpContext(req);
   const protocol = req.get("MCP-Protocol-Version");
   if (protocol && !SUPPORTED_PROTOCOL_VERSIONS.includes(protocol)) {
     res.status(400).json({
@@ -141,23 +143,34 @@ export async function handleMcp(req: Request, res: Response) {
     if (!Object.hasOwn(toolSchemas, request.params.name))
       throw new McpError(ErrorCode.InvalidParams, "Unknown tool");
     const name = request.params.name as ToolName;
-    const args = toolSchemas[name].safeParse(request.params.arguments ?? {});
+    const input = request.params.arguments ?? {};
+    const invoke = async () => {
+      const args = toolSchemas[name].safeParse(input);
+      if (!args.success) throw new McpCallError(inputRecovery(args.error));
+      try {
+        return toolData(name, await tool(scope, name, args.data));
+      } catch (error) {
+        throw new McpCallError(executionRecovery(error, name));
+      }
+    };
     let result: unknown;
-    if (!args.success) {
-      // Never reflect raw inputs, issue values, tokens or allergy concerns.
+    try {
+      result = {
+        ok: true,
+        data:
+          origin === "external"
+            ? await customerMcpLog.call(scope, "mcp", name, input, invoke)
+            : await invoke(),
+      };
+    } catch (error) {
+      // Preserve the existing recovery envelope; no raw exception is returned.
       result = {
         ok: false,
-        error: inputRecovery(args.error),
+        error:
+          error instanceof McpCallError
+            ? error.recovery
+            : executionRecovery(error, name),
       };
-    } else {
-      try {
-        result = {
-          ok: true,
-          data: toolData(name, await tool(scope, name, args.data)),
-        };
-      } catch (error) {
-        result = { ok: false, error: executionRecovery(error, name) };
-      }
     }
     const payload = toolOutputSchemas[name].parse({ result });
     return {

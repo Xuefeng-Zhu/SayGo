@@ -6,7 +6,8 @@ import { scopeForToken, getView, voiceLease } from "@saygo/domain";
 import { openMcp } from "@saygo/integrations";
 import { NovaSession } from "../../../packages/integrations/src/nova.js";
 import type { VoiceSessionOptions } from "../../../packages/integrations/src/nova.js";
-import { agentToken, cookie } from "./auth.js";
+import { cookie } from "./auth.js";
+import { openCustomerMcp } from "./customer-mcp-log.js";
 import {
   CURRENT_NOVA_VOICE_CONFIRMATION_SUPPORTED,
   VoiceConfirmationCoordinator,
@@ -235,7 +236,7 @@ export function attachVoice(
             // Ownership can change during a slow initial lease/MCP acquisition.
             await getView({ ...scope, actor: "agent" });
             if (ended) return;
-            mcp = await openMcp(agentToken(scope));
+            mcp = await openCustomerMcp(scope, "voice");
             if (ended) return;
             await getView({ ...scope, actor: "agent" });
             if (ended) return;

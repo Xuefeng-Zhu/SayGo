@@ -192,6 +192,30 @@ export const toolSchemas = {
     .strict(),
 };
 export type ToolName = keyof typeof toolSchemas;
+
+/** Customer-safe metadata for actual MCP invocations; never raw arguments/results. */
+export const customerMcpLogEntrySchema = z
+  .object({
+    id: z.string().uuid(),
+    tool: z.enum(Object.keys(toolSchemas) as [ToolName, ...ToolName[]]),
+    source: z.enum(["voice", "screen", "fixture", "mcp"]),
+    status: z.enum(["pending", "succeeded", "failed", "unknown"]),
+    input_summary: z.string().min(1).max(120),
+    result_summary: z.string().min(1).max(200).optional(),
+    duration_ms: z.number().int().nonnegative().max(3_600_000).optional(),
+  })
+  .strict();
+export type CustomerMcpLogEntry = z.infer<typeof customerMcpLogEntrySchema>;
+export type CustomerMcpSource = CustomerMcpLogEntry["source"];
+export const customerMcpLogSchema = z
+  .object({
+    session_id: z.string().uuid(),
+    epoch: z.number().int().nonnegative(),
+    entries: z.array(customerMcpLogEntrySchema).max(30),
+    limit: z.literal(30),
+  })
+  .strict();
+export type CustomerMcpLogSnapshot = z.infer<typeof customerMcpLogSchema>;
 export * from "./mcp";
 export type Product = {
   id: string;

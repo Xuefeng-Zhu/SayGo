@@ -24,15 +24,11 @@ import {
   type ToolName,
   type Scope,
 } from "@saygo/contracts";
-import {
-  openMcp,
-  runFixture,
-  fixtures,
-  McpCallError,
-} from "@saygo/integrations";
-import { agentToken, laneScope, login, setCookie, staff } from "./auth.js";
+import { runFixture, fixtures, McpCallError } from "@saygo/integrations";
+import { laneScope, login, setCookie, staff } from "./auth.js";
 import { handleMcp } from "./mcp.js";
 import { stopVoice } from "./voice.js";
+import { customerMcpLog, openCustomerMcp } from "./customer-mcp-log.js";
 export const app = express();
 app.disable("x-powered-by");
 const rates = new Map<string, { count: number; until: number }>();
@@ -145,11 +141,18 @@ app.post("/api/lane/depart", async (req, res) => {
   await staff(req, ["admin", "crew"]);
   const scope = await laneScope(req);
   await endInteraction(scope);
+  customerMcpLog.clear(scope);
   setCookie(res, "saygo_lane", "", 0);
   res.json({ ok: true });
 });
 app.get("/api/lane/state", async (req, res) => {
   res.json(await getView(await laneScope(req)));
+});
+app.get("/api/lane/mcp-log", async (req, res) => {
+  const scope = await laneScope(req);
+  // Recheck active customer interaction; no caller-selectable session or log key.
+  await getView(scope);
+  res.json(customerMcpLog.read(scope));
 });
 app.get("/api/lane/meal-savings", async (req, res) => {
   res.json(await getMealSavings(await laneScope(req)));
@@ -205,7 +208,7 @@ app.post("/api/lane/tool", async (req, res) => {
   );
   const scope = await laneScope(req);
   if (a.name === "prepare_order_review") await stopVoice(scope.session_id);
-  const mcp = await openMcp(agentToken(scope));
+  const mcp = await openCustomerMcp(scope, "screen");
   try {
     const result = await mcp.call(a.name, a.arguments);
     if (a.name === "request_staff_help") {
@@ -231,7 +234,7 @@ app.post("/api/lane/fixture", async (req, res) => {
     .strict()
     .parse(req.body);
   const scope = await laneScope(req),
-    mcp = await openMcp(agentToken(scope));
+    mcp = await openCustomerMcp(scope, "fixture");
   try {
     res.json(await laneResult(scope, await runFixture(a.text, mcp.call)));
   } finally {
@@ -242,7 +245,7 @@ app.post("/api/lane/confirm", async (req, res) => {
   const a = z.object({ quote_id: z.string().uuid() }).strict().parse(req.body);
   const scope = await laneScope(req);
   await approve(scope, a.quote_id);
-  const mcp = await openMcp(agentToken(scope));
+  const mcp = await openCustomerMcp(scope, "screen");
   try {
     res.json(
       await laneResult(

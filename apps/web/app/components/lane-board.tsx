@@ -13,6 +13,7 @@ import { ItemEditor, MenuPanel, Modal, OrderLines, OrderTotals } from "./order";
 import { useVoice, type ResetProposal } from "./use-voice";
 import { CorrectionReceipt, MealSavingsCard } from "./draft-improvements";
 import { VoiceConfirmationPanel } from "./voice-confirmation";
+import { McpCallLog } from "./mcp-call-log";
 type Config = {
   demo: boolean;
   voice: boolean;
@@ -611,6 +612,11 @@ export function LaneBoard() {
                     </button>
                   )}
               </section>
+              <McpCallLog
+                key={`${view.session.id}:${view.session.epoch}`}
+                sessionId={view.session.id}
+                epoch={view.session.epoch}
+              />
               {!view.order &&
                 view.lines.length > 0 &&
                 view.session.owner === "ai" &&
